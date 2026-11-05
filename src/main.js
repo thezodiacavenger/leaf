@@ -87,7 +87,10 @@ function hidePanel() { if (panelWin?.isVisible()) panelWin.hide(); }
 // ---------- the flow: drop -> propose -> run -> done ----------
 async function handleDrop(paths, { auto = false } = {}) {
   paths = (paths || []).filter((p) => p && fs.existsSync(p));
-  if (!paths.length) return;
+  if (!paths.length) {
+    setState({ phase: 'error', error: 'Leaf couldn’t see a file in that drop. Try dragging it from File Explorer.' });
+    showPanel(); return;
+  }
   if (state.phase === 'working') { showPanel(); return; }
   sources?.forEach((s) => s.close && s.close());
   setState({ phase: 'reading', proposal: null, result: null });

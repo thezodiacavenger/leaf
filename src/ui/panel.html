@@ -167,7 +167,7 @@
   addEventListener('dragenter', (e) => { e.preventDefault(); depth++; document.body.classList.add('over'); });
   addEventListener('dragleave', () => { if (--depth <= 0) { depth = 0; document.body.classList.remove('over'); } });
   addEventListener('dragover', (e) => e.preventDefault());
-  addEventListener('drop', (e) => { e.preventDefault(); depth = 0; document.body.classList.remove('over'); leaf.send('leaf:drop', leaf.pathsOf(e.dataTransfer.files)); });
+  addEventListener('drop', (e) => { e.preventDefault(); depth = 0; document.body.classList.remove('over'); leaf.send('leaf:drop', leaf.pathsOf([...e.dataTransfer.files])); });
 
   leaf.on('state', (s) => { S = s; render(); });
   leaf.send('ready');

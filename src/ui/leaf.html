@@ -47,7 +47,7 @@
   addEventListener('dragenter', (e) => { e.preventDefault(); depth++; b.classList.add('drag'); });
   addEventListener('dragleave', () => { if (--depth <= 0) { depth = 0; b.classList.remove('drag'); } });
   addEventListener('dragover', (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; });
-  addEventListener('drop', (e) => { e.preventDefault(); depth = 0; b.classList.remove('drag'); leaf.send('leaf:drop', leaf.pathsOf(e.dataTransfer.files)); });
+  addEventListener('drop', (e) => { e.preventDefault(); depth = 0; b.classList.remove('drag'); leaf.send('leaf:drop', leaf.pathsOf([...e.dataTransfer.files])); });
 
   // Click toggles the panel; press-and-drag moves the leaf anywhere.
   let start = null;
