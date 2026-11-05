@@ -1,0 +1,20 @@
+const { app, BrowserWindow, ipcMain } = require('electron');
+const fs = require('fs'); const OUT = process.env.SHOTS;
+process.argv.push(process.env.DROP);
+require('/home/user/leaf/src/main.js');
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+const shot = async (name) => { for (const w of BrowserWindow.getAllWindows()) if (w.isVisible()) { const t = await w.webContents.getTitle(); const f = w.webContents.getURL().split('/').pop().split('?')[0]; fs.writeFileSync(`${OUT}/${name}-${f}.png`, (await w.capturePage()).toPNG()); } };
+app.whenReady().then(async () => {
+  await wait(2500); await shot('1-proposal');
+  ipcMain.emit('panel:act', {}, 0);
+  await wait(2500); await shot('2-done');
+  ipcMain.emit('panel:gallery', {}, null);
+  await wait(2000); await shot('3-gallery');
+  const g = BrowserWindow.getAllWindows().find((w) => w.webContents.getURL().includes('gallery'));
+  g.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Right' }); await wait(500);
+  g.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Space' }); g.webContents.sendInputEvent({ type: 'char', keyCode: ' ' }); await wait(1500);
+  await shot('4-lightbox');
+  console.log('lightbox open:', await g.webContents.executeJavaScript("document.getElementById('lb').classList.contains('open')"), 'fullscreen:', g.isFullScreen());
+  console.log(fs.readdirSync(process.env.DROP.replace(/\.zip$/, ' (JPEG)')));
+  app.exit(0);
+});
