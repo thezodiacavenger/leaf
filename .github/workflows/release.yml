@@ -5,7 +5,7 @@ name: Release
 on:
   push:
     branches: [main]
-    paths: [package.json]
+    paths: [package.json, .github/workflows/release.yml]
     tags: ['v*']
   workflow_dispatch:
 permissions: { contents: write }
@@ -30,7 +30,8 @@ jobs:
         run: npm ci
       - name: Build portable .exe and installer
         if: steps.v.outputs.exists == 'false'
-        run: npx electron-builder --win portable nsis --x64 --publish never -c.win.signAndEditExecutable=true
+        shell: bash
+        run: npx electron-builder --win portable nsis --x64 --publish never --config.win.signAndEditExecutable=true
       - name: Publish release
         if: steps.v.outputs.exists == 'false'
         shell: bash
