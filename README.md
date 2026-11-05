@@ -121,7 +121,7 @@ npm test           # engine tests (Linux: xvfb-run -a npm test)
 npm run prebuild   # only when building on Linux/macOS: fetches the Windows ExifTool
 npm run dist       # → dist/Leaf-<version>-portable.exe
 ```
-Releases are built automatically on Windows by GitHub Actions when a `v*` tag is pushed.
+Releases are automatic: bump `version` in package.json and push to `main`, and GitHub Actions builds Leaf on Windows and publishes it to Releases.
 
 ### Size
 The download is about 99 MB, most of it the Electron runtime. Leaf's own code and libraries are about 12 MB, plus 35 MB for ExifTool. Unused Chromium translations, the WebGPU shader compiler, duplicate library builds and the Linux copy of ExifTool are stripped at build time.
