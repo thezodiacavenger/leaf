@@ -1,5 +1,10 @@
 # Leaf
 
+[![CI](https://github.com/thezodiacavenger/leaf/actions/workflows/ci.yml/badge.svg)](https://github.com/thezodiacavenger/leaf/actions/workflows/ci.yml)
+[![Latest release](https://img.shields.io/github/v/release/thezodiacavenger/leaf?label=download)](https://github.com/thezodiacavenger/leaf/releases/latest)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+![Windows 10 | 11](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D6)
+
 **Drop anything on the leaf. It works out what you want.**
 
 Leaf is a small glass leaf that sits in the corner of the Windows desktop. Drag a zip, folder, email, PDF, Office file, photo or RAW file onto it. Leaf looks inside, suggests the one thing you most likely want, and does it with a single key press. Originals are never changed, and nothing leaves your PC.
@@ -8,7 +13,17 @@ Leaf is a small glass leaf that sits in the corner of the Windows desktop. Drag 
 |---|---|---|---|
 | ![](docs/1-suggest.png) | ![](docs/2-done.png) | ![](docs/3-gallery.png) | ![](docs/4-fullscreen.png) |
 
-**Download:** [`download/Leaf-0.3.0-portable.exe`](download/Leaf-0.3.0-portable.exe), portable with nothing to install. Windows 10 or 11, 64-bit.
+## Install
+Download the latest version from **[Releases](https://github.com/thezodiacavenger/leaf/releases/latest)**:
+- **Leaf-Setup-x.y.z.exe**: installs Leaf with a Start-menu entry and uninstaller.
+- **Leaf-x.y.z-portable.exe**: runs without installing.
+
+Windows 10 or 11, 64-bit. Builds aren't code-signed yet, so on first run choose *More info → Run anyway*.
+
+### Why Leaf?
+- **Private by default.** Nothing is uploaded; conversions happen on your PC. Online converters can't promise that.
+- **One drop, one decision.** Leaf reads the file and suggests the right action, instead of making you pick formats from menus.
+- **Office-worker formats in one place.** Outlook emails and `winmail.dat`, PDF packages, CSV that keeps leading zeros, claim photo reports, RAW and HEIC photos.
 
 ---
 
@@ -102,9 +117,11 @@ src/
 ### Build
 ```bash
 npm install
-npm run prebuild   # fetches the Windows ExifTool when building on Linux/macOS
-npm run dist       # → dist/Leaf-0.3.0-portable.exe
+npm test           # engine tests (Linux: xvfb-run -a npm test)
+npm run prebuild   # only when building on Linux/macOS: fetches the Windows ExifTool
+npm run dist       # → dist/Leaf-<version>-portable.exe
 ```
+Releases are built automatically on Windows by GitHub Actions when a `v*` tag is pushed.
 
 ### Size
 The download is about 99 MB, most of it the Electron runtime. Leaf's own code and libraries are about 12 MB, plus 35 MB for ExifTool. Unused Chromium translations, the WebGPU shader compiler, duplicate library builds and the Linux copy of ExifTool are stripped at build time.
@@ -121,3 +138,11 @@ The download is about 99 MB, most of it the Electron runtime. Leaf's own code an
 - Connectors: OneDrive/SharePoint, Teams.
 - Learns your habits: your usual choice becomes the default.
 - Business drops: inventory export → aged-stock summary.
+
+---
+
+## Contributing
+Ideas, bug reports and pull requests are welcome. Start with **[CONTRIBUTING.md](CONTRIBUTING.md)**: setup takes three commands, and adding a new file type usually touches two files. Please report security issues privately (see [SECURITY.md](SECURITY.md)).
+
+## License
+[MIT](LICENSE) © 2026 Emmet Adriaans. Bundled third-party components keep their own licences; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

@@ -12,7 +12,7 @@ app.whenReady().then(async () => {
     const f = await PDFDocument.create(); const pg = f.addPage([612, 792]); const font = await f.embedFont(StandardFonts.Helvetica);
     pg.drawText('CERTIFICATE OF LIABILITY INSURANCE (test form)', { x: 50, y: 740, size: 14, font });
     const form = f.getForm();
-    [['Insured', 'Vistek Ltd'], ['Policy', 'GL-0042-7781'], ['Limit', '$2,000,000']].forEach(([n, v], i) => { const t = form.createTextField(n); t.setText(v); t.addToPage(pg, { x: 50, y: 680 - i * 40, width: 300, height: 24 }); });
+    [['Insured', 'Northwind Traders'], ['Policy', 'GL-0042-7781'], ['Limit', '$2,000,000']].forEach(([n, v], i) => { const t = form.createTextField(n); t.setText(v); t.addToPage(pg, { x: 50, y: 680 - i * 40, width: 300, height: 24 }); });
     const formBytes = Buffer.from(await f.save()); fs.writeFileSync(`${O}/form.pdf`, formBytes);
     log('form facts', JSON.stringify(await P.facts(formBytes)));
     // 2. A heavy "scanned" PDF from full-res photos
@@ -36,10 +36,10 @@ app.whenReady().then(async () => {
     fs.writeFileSync(`${O}/flat.pdf`, await P.flatten(formBytes)); log('flat facts', JSON.stringify(await P.facts(fs.readFileSync(`${O}/flat.pdf`))));
     fs.writeFileSync(`${O}/scrubbed.pdf`, await P.scrub(email));
     // 6. protect / unlock
-    const locked = await P.protect(formBytes, 'Vistek2026'); fs.writeFileSync(`${O}/locked.pdf`, locked);
+    const locked = await P.protect(formBytes, 'Example2026'); fs.writeFileSync(`${O}/locked.pdf`, locked);
     log('locked facts', JSON.stringify(await P.facts(locked)));
     try { await P.unlock(locked, 'wrong'); log('wrong pw', 'ACCEPTED (bad)'); } catch (e) { log('wrong pw', 'rejected: ' + e.message); }
-    fs.writeFileSync(`${O}/unlocked.pdf`, await P.unlock(locked, 'Vistek2026')); log('unlock', 'ok');
+    fs.writeFileSync(`${O}/unlocked.pdf`, await P.unlock(locked, 'Example2026')); log('unlock', 'ok');
     try { await P.extract(locked, '1'); } catch (e) { log('locked extract', e.message); }
     try { P.parseRanges('5-x', 4); } catch (e) { log('bad range', e.message); }
   } catch (e) { console.log('FAILED', e.stack); }

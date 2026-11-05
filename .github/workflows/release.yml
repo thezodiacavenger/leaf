@@ -1,0 +1,26 @@
+name: Release
+# Push a tag like v0.3.1 to build the Windows app and publish it on the Releases page.
+on:
+  push: { tags: ['v*'] }
+  workflow_dispatch:
+permissions: { contents: write }
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - name: Build portable .exe and installer
+        run: npx electron-builder --win portable nsis --x64 --publish never -c.win.signAndEditExecutable=true
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        env: { GH_TOKEN: '${{ github.token }}' }
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/*.exe --title "Leaf ${GITHUB_REF_NAME#v}" \
+            --notes "Download **Leaf-Setup** to install (Start menu, uninstaller) or **portable** to run without installing. Windows 10/11, 64-bit. The app is unsigned: on first run choose *More info → Run anyway*."
+      - uses: actions/upload-artifact@v4
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        with: { name: leaf-windows, path: dist/*.exe }

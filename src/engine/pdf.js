@@ -6,12 +6,29 @@ const { PDFDocument, PDFName, PDFRawStream, PDFHexString, PDFArray, PDFNull, PDF
 
 const LETTER = [612, 792];
 
+// Once decrypted in memory, drop the encryption marker so saved copies are plain, valid PDFs
+// (otherwise strict readers like Acrobat try to decrypt content that is already decrypted).
+function plain(doc) {
+  const enc = doc.context.trailerInfo.Encrypt;
+  if (enc) { try { if (enc.objectNumber != null) doc.context.delete(enc); } catch {} doc.context.trailerInfo.Encrypt = undefined; }
+  try { doc.isEncrypted = false; } catch {}
+  // The source file's old cross-reference streams (and the encryption dictionary they point to) get carried
+  // over as stray objects; some readers mistake them for the live trailer. Drop them — save() writes fresh ones.
+  for (const [ref, obj] of doc.context.enumerateIndirectObjects()) {
+    const type = obj && obj.dict && obj.dict.get(PDFName.of('Type'));
+    const isEncDict = obj instanceof PDFDict && obj.get(PDFName.of('Filter')) && obj.get(PDFName.of('O')) && obj.get(PDFName.of('U'));
+    const isOldTrailer = obj instanceof PDFDict && obj.get(PDFName.of('Root')) && obj.get(PDFName.of('Size'));
+    if ((type && type.asString && type.asString() === '/XRef') || isEncDict || isOldTrailer) doc.context.delete(ref);
+  }
+  return doc;
+}
+
 // Opens any PDF. Owner-restricted PDFs (no open password) are decrypted transparently.
 async function open(bytes, password) {
-  try { return await PDFDocument.load(bytes, { updateMetadata: false, ...(password != null ? { password } : {}) }); }
+  try { return plain(await PDFDocument.load(bytes, { updateMetadata: false, ...(password != null ? { password } : {}) })); }
   catch (e) {
     if (password == null && /encrypt/i.test(e.message)) {
-      try { return await PDFDocument.load(bytes, { updateMetadata: false, password: '' }); }
+      try { return plain(await PDFDocument.load(bytes, { updateMetadata: false, password: '' })); }
       catch { const err = new Error('This PDF needs a password. Use “Remove password”.'); err.needsPassword = true; throw err; }
     }
     if (/password/i.test(e.message)) throw new Error('That password didn’t open this PDF.');

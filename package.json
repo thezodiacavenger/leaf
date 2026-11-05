@@ -1,15 +1,16 @@
 {
   "name": "leaf",
-  "version": "0.3.0",
-  "description": "Drop anything. Leaf converts it.",
+  "version": "0.3.1",
+  "description": "Drop anything on the leaf: a calm Windows desktop assistant that converts photos, RAW, HEIC, emails, PDFs and Office files locally.",
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",
     "dist": "electron-builder --win portable --x64",
-    "prebuild": "npm install --no-save --force --os=win32 --cpu=x64 exiftool-vendored.exe@$(node -p \"require('exiftool-vendored/package.json').optionalDependencies['exiftool-vendored.exe']\")"
+    "prebuild": "npm install --no-save --force --os=win32 --cpu=x64 exiftool-vendored.exe@$(node -p \"require('exiftool-vendored/package.json').optionalDependencies['exiftool-vendored.exe']\")",
+    "test": "electron --no-sandbox tests/unit.js"
   },
-  "author": "Vistek Ltd",
-  "license": "UNLICENSED",
+  "author": "Emmet Adriaans",
+  "license": "MIT",
   "dependencies": {
     "@cantoo/pdf-lib": "2.11.1",
     "@kenjiuno/decompressrtf": "0.1.4",
@@ -30,7 +31,7 @@
   },
   "productName": "Leaf",
   "build": {
-    "appId": "ca.vistek.leaf",
+    "appId": "ca.eadriaans.leaf",
     "productName": "Leaf",
     "directories": {
       "output": "dist"
@@ -60,8 +61,9 @@
       "signAndEditExecutable": false
     },
     "nsis": {
-      "oneClick": true,
+      "oneClick": false,
       "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
       "artifactName": "Leaf-Setup-${version}.exe"
     },
     "portable": {
@@ -72,12 +74,34 @@
       "node_modules/heic-decode/**",
       "node_modules/libheif-js/**",
       "**/exiftool-vendored.exe/**",
-      "**/exiftool-vendored.pl/**"
+      "**/exiftool-vendored.pl/**",
+      "node_modules/libraw-wasm/**"
     ],
     "electronLanguages": [
       "en-US",
       "fr"
     ],
-    "afterPack": "build/after-pack.js"
-  }
+    "afterPack": "build/after-pack.js",
+    "copyright": "© 2026 Emmet Adriaans"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/thezodiacavenger/leaf.git"
+  },
+  "homepage": "https://github.com/thezodiacavenger/leaf#readme",
+  "bugs": {
+    "url": "https://github.com/thezodiacavenger/leaf/issues"
+  },
+  "keywords": [
+    "windows",
+    "electron",
+    "converter",
+    "heic",
+    "raw",
+    "pdf",
+    "outlook",
+    "msg",
+    "desktop-assistant",
+    "privacy"
+  ]
 }

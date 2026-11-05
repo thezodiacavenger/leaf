@@ -300,7 +300,7 @@ function argPaths(argv) { return argv.slice(app.isPackaged ? 1 : 2).filter((a) =
 app.on('second-instance', (_e, argv) => { const p = argPaths(argv); if (p.length) handleDrop(p, { auto: argv.includes('--auto') }); else showPanel(); });
 
 app.whenReady().then(() => {
-  if (process.platform === 'win32') app.setAppUserModelId('ca.vistek.leaf');
+  if (process.platform === 'win32') app.setAppUserModelId('ca.eadriaans.leaf');
   for (const t of ['leaf-src', 'leaf-thumbs', 'leaf-email', 'leaf-render']) fs.rmSync(path.join(os.tmpdir(), t), { recursive: true, force: true }); // last session's temp files
   const APP_ROOT = path.join(__dirname, '..');
   const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.wasm': 'application/wasm', '.css': 'text/css' };
@@ -308,8 +308,11 @@ app.whenReady().then(() => {
     const u = new URL(req.url);
     if (u.host === 'app') {
       // App files served cross-origin-isolated, so the darkroom's WebAssembly threads can share memory.
-      const file = path.normalize(path.join(APP_ROOT, decodeURIComponent(u.pathname)));
+      let file = path.normalize(path.join(APP_ROOT, decodeURIComponent(u.pathname)));
       if (!file.startsWith(APP_ROOT + path.sep)) return new Response('', { status: 404 });
+      // Files kept outside the archive (LGPL libraries, ExifTool) live in app.asar.unpacked.
+      const unpacked = file.replace(`app.asar${path.sep}`, `app.asar.unpacked${path.sep}`);
+      if (unpacked !== file && fs.existsSync(unpacked)) file = unpacked;
       const r = await net.fetch(pathToFileURL(file).toString()).catch(() => null);
       if (!r || !r.ok) return new Response('', { status: 404 });
       return new Response(r.body, { headers: { 'Content-Type': TYPES[path.extname(file)] || 'application/octet-stream',

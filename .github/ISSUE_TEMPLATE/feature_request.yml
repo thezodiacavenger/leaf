@@ -1,0 +1,20 @@
+name: Feature idea / new file type
+description: Something you wish Leaf could do when you drop a file
+labels: [enhancement]
+body:
+  - type: textarea
+    id: drop
+    attributes:
+      label: When I drop…
+      placeholder: "…an Outlook calendar invite (.ics)"
+    validations: { required: true }
+  - type: textarea
+    id: want
+    attributes:
+      label: …I'd like Leaf to suggest
+      placeholder: "Add to calendar / Save as PDF"
+    validations: { required: true }
+  - type: textarea
+    id: why
+    attributes:
+      label: Why it matters (how often, who for)
