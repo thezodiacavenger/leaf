@@ -87,6 +87,11 @@ async function copyMeta(src, dest, { stripGps = false } = {}) {
   } catch { /* metadata is a bonus; never fail a conversion over it */ }
 }
 
+// Strips every metadata tag (GPS, camera serial, author…) but keeps the colour profile and rotation.
+async function stripMeta(file) {
+  await exiftool().write(file, {}, { writeArgs: ['-overwrite_original', '-all=', '-tagsFromFile', '@', '-icc_profile', '-Orientation'] });
+}
+
 // Gives ExifTool a real file even for items that live inside a zip.
 const TMP = path.join(os.tmpdir(), 'leaf-src'); let tmpSeq = 0;
 async function onDisk(item, buf) {
@@ -123,7 +128,8 @@ async function photoInfo(file) {
     ['File', [path.basename(file), val(t.FileSize)].filter(Boolean).join(' · ')],
   ].filter(([, v]) => v);
   const gps = t.GPSLatitude != null && t.GPSLongitude != null ? { lat: Number(t.GPSLatitude), lon: Number(t.GPSLongitude) } : null;
-  return { camera: camera || path.basename(file), hero, rows, gps, name: path.basename(file) };
+  const d = t.DateTimeOriginal || t.CreateDate; const takenRaw = d && d.toDate ? +d.toDate() : 0;
+  return { camera: camera || path.basename(file), hero, rows, gps, name: path.basename(file), takenRaw };
 }
 
 // Every tag, grouped, for the "All tags" view.
@@ -133,4 +139,4 @@ async function allTags(file) {
     .map(([k, v]) => { const [g, n] = k.includes(':') ? k.split(':') : ['', k]; return [g, n, typeof v === 'object' ? JSON.stringify(v) : String(v)]; });
 }
 
-module.exports = { RAW, BRANDS, largestJpeg, rotate, rawInfo, copyMeta, onDisk, photoInfo, allTags, endExiftool: () => et && et.end() };
+module.exports = { RAW, BRANDS, largestJpeg, rotate, rawInfo, copyMeta, stripMeta, onDisk, photoInfo, allTags, endExiftool: () => et && et.end() };

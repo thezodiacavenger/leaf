@@ -75,6 +75,17 @@
   .all .g { color: var(--accent); font-weight: 600; margin: 8px 0 3px; font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; }
   .all .t { display: grid; grid-template-columns: 44% 1fr; gap: 8px; padding: 2px 0; } .all .t span:first-child { color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; }
   .all .t span:last-child { overflow-wrap: anywhere; }
+.alt.more { color: var(--ink-3); border-style: dashed; }
+  .ask { margin-top: 16px; } .ask label { display: block; font-size: 12px; color: var(--ink-2); margin-bottom: 6px; }
+  .ask .field { display: flex; gap: 6px; }
+  .ask input { flex: 1; font: inherit; font-size: 14px; color: inherit; background: var(--hover); border: 1px solid var(--line-strong); border-radius: 10px; padding: 10px 12px; outline: none; -webkit-user-select: text; user-select: text; }
+  .ask input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent); }
+  .ask .peek { width: 40px; border-radius: 10px; border: 1px solid var(--line); color: var(--ink-3); display: grid; place-items: center; }
+  .ask .note { margin-top: 8px; }
+  .ask .err { color: #e5484d; font-size: 12px; margin-top: 6px; min-height: 1em; }
+.offer { display: flex; gap: 12px; margin-top: 16px; padding: 12px; border-radius: 12px; background: var(--hover); border: 1px solid var(--line); }
+  .offer img { width: 44px; height: 44px; flex: none; } .offer b { font-weight: 600; } .offer p { color: var(--ink-3); font-size: 12px; margin-top: 3px; }
+  .offer .tools { margin-top: 10px; } .tool.main { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
   body.over .card { outline: 2px dashed color-mix(in srgb, var(--accent) 60%, transparent); outline-offset: -8px; }
 </style></head>
 <body>
@@ -82,6 +93,11 @@
   <symbol id="photo" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="1.8"/><path d="M21 16l-5-5-9 9"/></symbol>
   <symbol id="doc" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></symbol>
   <symbol id="archive" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="5" rx="1.5"/><path d="M5 9v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9M10 13h4"/></symbol>
+  <symbol id="mail" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M4 7l8 6 8-6"/></symbol>
+  <symbol id="stack" viewBox="0 0 24 24"><path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/></symbol>
+  <symbol id="sheet" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2.5"/><path d="M4 9.5h16M4 14.5h16M10 4v16"/></symbol>
+  <symbol id="slides" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M12 16v4M8 20h8"/></symbol>
+  <symbol id="lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></symbol>
   <symbol id="file" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></symbol>
   <symbol id="close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
   <symbol id="eye" viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></symbol>
@@ -114,7 +130,13 @@
     if (r.action === 'unzip') return `${r.outputs.length} files unzipped`;
     if (r.action === 'zip') return 'Zip ready';
     if (r.action === 'doc-mail') return 'Opened in Outlook';
-    if (r.action.startsWith('doc')) return r.outputs.length === 1 ? 'PDF ready' : `${r.outputs.length} PDFs ready`;
+    const n = r.outputs.length; const T = {
+      'mail-pdf': n === 1 ? 'Email saved as PDF' : `${n} emails saved as PDF`, 'mail-onepdf': 'One PDF of all emails', 'mail-attach': `${n} attachment${n === 1 ? '' : 's'} saved`,
+      combine: 'Combined PDF ready', 'pdf-compress': n === 1 ? 'Compressed' : `${n} PDFs compressed`, 'pdf-split': `${n} pages saved`, 'pdf-extract': 'Pages extracted',
+      'pdf-rotate': 'Rotated', 'pdf-flatten': 'Form flattened', 'pdf-protect': 'Password added', 'pdf-unlock': 'Password removed', 'pdf-word': 'Word document ready',
+      'office-pdf': n === 1 ? 'PDF ready' : `${n} PDFs ready`, 'office-email': 'PDF attached in Outlook', 'xls-csv': `${n} CSV file${n === 1 ? '' : 's'} ready`, 'csv-xlsx': 'Opened safely in Excel',
+      'csv-clean': 'CSV cleaned', clean: 'Hidden data removed', 'photo-report': 'Photo report ready', ocr: n === 1 ? 'Searchable PDF ready' : `${n} searchable PDFs`, 'tiff-pdf': 'PDF ready' };
+    if (T[r.action]) return T[r.action];
     const ext = (r.outputs[0]?.name.split('.').pop() || '').toUpperCase().replace('JPG', 'JPEG');
     return `${r.outputs.length} ${ext}${r.outputs.length === 1 ? '' : 's'} ready`;
   }
@@ -122,15 +144,26 @@
   function render() {
     const key = S.phase + (S.phase === 'done' ? S.result?.title : '') + (S.proposal?.title || '') + (S.phase === 'exif' ? S.exif?.index : '');
     if (S.phase === 'exif' && key !== lastKey) { query = ''; hideAll = false; }
+    if (key !== lastKey) { asking = null; showMore = false; }
     const fresh = key !== lastKey; lastKey = key;
     let h = '';
     if (S.phase === 'reading') h = header('leaf', 'Looking inside…', 'One moment');
     else if (S.phase === 'proposal') {
       const p = S.proposal; const [first, ...rest] = p.actions;
-      h = header(p.icon, p.title, p.subtitle) +
-        `<button class="primary" data-act="0" ${first.disabled ? 'disabled' : ''}><span class="lbl">${esc(first.label)}<small>${esc(first.hint || '')}</small></span><kbd>Enter</kbd></button>` +
-        (rest.length ? `<div class="alts">${rest.map((a, i) => `<button class="alt" data-act="${i + 1}" ${a.disabled ? 'disabled' : ''} title="${esc(a.hint || '')}">${esc(a.label)} <kbd>${i + 2}</kbd></button>`).join('')}</div>` : '') +
-        `<div class="foot"><span>Originals are never changed</span><span>Esc to dismiss</span></div>`;
+      if (asking && p.actions[asking.i]) {
+        const a = p.actions[asking.i]; const pw = a.ask.kind === 'password';
+        h = header(pw ? 'lock' : p.icon, a.label.replace(/…$/, ''), p.title) +
+          `<form class="ask" id="askf"><label for="askv">${esc(a.ask.label)}</label><div class="field"><input id="askv" type="${pw ? 'password' : 'text'}" autocomplete="off" spellcheck="false" placeholder="${esc(a.ask.placeholder || '')}">${pw ? `<button type="button" class="peek" data-do="peek" title="Show">${icon('eye')}</button>` : ''}</div>` +
+          `<div class="err" id="askerr"></div>${pw && a.id === 'pdf-protect' ? '<div class="note">Leaf doesn’t keep this password. Send it to the recipient separately — not in the same email.</div>' : ''}` +
+          `<button class="primary" type="submit"><span class="lbl">${esc(a.ask.go)}</span><kbd>Enter</kbd></button></form>` +
+          `<div class="foot"><span></span><span>Esc to go back</span></div>`;
+      } else {
+        const shown = showMore ? rest : rest.slice(0, 4); const hidden = rest.length - shown.length;
+        h = header(p.icon, p.title, p.subtitle) +
+          `<button class="primary" data-act="0" ${first.disabled ? 'disabled' : ''}><span class="lbl">${esc(first.label)}<small>${esc(first.hint || '')}</small></span><kbd>Enter</kbd></button>` +
+          (rest.length ? `<div class="alts">${shown.map((a, i) => `<button class="alt" data-act="${i + 1}" ${a.disabled ? 'disabled' : ''} title="${esc(a.hint || '')}">${esc(a.label)} <kbd>${i + 2 <= 9 ? i + 2 : ''}</kbd></button>`).join('')}${hidden ? `<button class="alt more" data-do="more">More (${hidden}) <kbd>M</kbd></button>` : ''}</div>` : '') +
+          `<div class="foot"><span>Originals are never changed</span><span>Esc to dismiss</span></div>`;
+      }
     } else if (S.phase === 'working') {
       const p = S.progress || {}; const pct = p.total ? Math.round(100 * p.done / p.total) : 0;
       h = header('leaf', `${S.action}…`, p.total ? `${p.done} of ${p.total}` : 'Starting') +
@@ -166,7 +199,8 @@
     } else if (S.phase === 'error') {
       h = header('file', 'That didn’t work', S.error) + `<div class="foot"><span>Try another file</span><span>Esc to dismiss</span></div>`;
     } else {
-      h = header('leaf', 'Drop anything on the leaf', 'Zips, folders, photos, Word docs') +
+      h = header('leaf', 'Drop anything on the leaf', 'Emails, PDFs, Office files, photos, RAW, zips') +
+        (S.pileOffer ? `<div class="offer"><img src="leaf-pile.ico" alt=""><div><b>Add a “Leaf Pile” folder to your desktop?</b><p>Drop or save files into it — from Outlook, a scanner, a download — and Leaf picks them up.</p><div class="tools"><button class="tool main" data-do="pile-yes">Add folder</button><button class="tool" data-do="pile-no">No thanks</button></div></div></div>` : '') +
         (S.recent?.length ? `<div class="label">Recent</div><div class="recent">${S.recent.map((r, i) => `<button data-recent="${i}"><span>${esc(r.title)}</span><span class="sub">${r.count} files</span></button>`).join('')}</div>` : '') +
         `<div class="foot"><span>Right-click the tray icon for settings</span><span></span></div>`;
     }
@@ -175,7 +209,19 @@
     if (fresh) (view.querySelector('.primary:not(:disabled), .act.main') || document.body).focus?.();
   }
 
-  let query = ''; let hideAll = false;
+  let query = ''; let hideAll = false; let asking = null; let showMore = false;
+  // Picking an action that needs input (password, pages) opens a small inline form first.
+  function choose(i) {
+    const a = S.proposal?.actions?.[i]; if (!a || a.disabled) return;
+    if (a.ask) { asking = { i }; render(); setTimeout(() => document.getElementById('askv')?.focus(), 30); return; }
+    leaf.send('panel:act', i);
+  }
+  view.addEventListener('submit', (e) => {
+    e.preventDefault(); const v = document.getElementById('askv').value; const a = S.proposal.actions[asking.i];
+    const err = a.ask.kind === 'password' && a.id === 'pdf-protect' && v.length < 4 ? 'Use at least 4 characters' : a.ask.kind === 'pages' && !/\d/.test(v) ? 'Type page numbers, like 1-3, 7' : '';
+    if (err) { document.getElementById('askerr').textContent = err; return; }
+    const i = asking.i; asking = null; leaf.send('panel:act', i, v);
+  });
   function tagsHtml(all) {
     const q = query.trim().toLowerCase(); let g = ''; let out = '';
     for (const [grp, name, v] of all) {
@@ -188,6 +234,9 @@
   view.addEventListener('input', (e) => { if (e.target.id === 'q') { query = e.target.value; document.getElementById('tags').innerHTML = tagsHtml(S.exif.all); } });
 
   async function doIt(what) {
+    if (what === 'more') { showMore = !showMore; return render(); }
+    if (what === 'pile-yes' || what === 'pile-no') return leaf.send('panel:pile', what === 'pile-yes');
+    if (what === 'peek') { const f = document.getElementById('askv'); f.type = f.type === 'password' ? 'text' : 'password'; return f.focus(); }
     if (what.startsWith('exif-')) {
       if (what === 'exif-prev') leaf.send('panel:exif-step', -1);
       else if (what === 'exif-next') leaf.send('panel:exif-step', 1);
@@ -209,15 +258,17 @@
   }
 
   view.addEventListener('click', (e) => {
-    const a = e.target.closest('[data-act]'); if (a) return leaf.send('panel:act', +a.dataset.act);
+    const a = e.target.closest('[data-act]'); if (a) return choose(+a.dataset.act);
     const d = e.target.closest('[data-do]'); if (d) return doIt(d.dataset.do);
     const r = e.target.closest('[data-recent]'); if (r) leaf.send('panel:gallery', +r.dataset.recent);
   });
   addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') return leaf.send(S.phase === 'exif' && S.exif?.back ? 'panel:exif-back' : 'panel:cancel');
+    if (e.key === 'Escape') { if (asking) { asking = null; render(); return; } return leaf.send(S.phase === 'exif' && S.exif?.back ? 'panel:exif-back' : 'panel:cancel'); }
     if (S.phase === 'proposal') {
-      if (e.key === 'Enter' && !(document.activeElement instanceof HTMLButtonElement)) { e.preventDefault(); leaf.send('panel:act', 0); }
-      const n = +e.key; if (n >= 2 && n <= 9) leaf.send('panel:act', n - 1);
+      if (asking) return;
+      if (e.key === 'Enter' && !(document.activeElement instanceof HTMLButtonElement)) { e.preventDefault(); choose(0); }
+      if (e.key.toLowerCase() === 'm') { showMore = !showMore; render(); }
+      const n = +e.key; if (n >= 2 && n <= 9) choose(n - 1);
     } else if (S.phase === 'exif') {
       if (e.target.id === 'q') return;
       if (e.key === 'ArrowLeft') doIt('exif-prev'); else if (e.key === 'ArrowRight') doIt('exif-next');

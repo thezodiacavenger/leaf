@@ -4,7 +4,7 @@ const path = require('node:path');
 const fs = require('node:fs');
 const os = require('node:os');
 const { pathToFileURL } = require('node:url');
-const { inspect, isPhoto } = require('./engine/sources');
+const { inspect, enrich, isPhoto } = require('./engine/sources');
 const raw = require('./engine/raw');
 const darkroom = require('./engine/darkroom');
 const { propose, mb } = require('./engine/plan');
@@ -25,16 +25,19 @@ let settings = { glass: 'auto', jpegQuality: 90, position: null };
 try { Object.assign(settings, JSON.parse(fs.readFileSync(settingsFile(), 'utf8'))); } catch {}
 const save = () => fs.promises.writeFile(settingsFile(), JSON.stringify(settings, null, 2)).catch(() => {});
 
-// Real acrylic needs Windows 11 (build 22000+). Everywhere else we draw the glass ourselves.
+// System acrylic (backgroundMaterial) exists from Windows 11 22H2 (build 22621). Windows 10 and 11 21H2 get drawn glass.
 const winBuild = process.platform === 'win32' ? Number(os.release().split('.')[2] || 0) : 0;
-const systemGlass = settings.glass !== 'css' && winBuild >= 22000;
+const systemGlass = settings.glass !== 'css' && winBuild >= 22621;
+// The portable .exe unpacks to a temp folder each launch; startup/Send To must point at the real file.
+const exePath = process.env.PORTABLE_EXECUTABLE_FILE || process.execPath;
 
 let leafWin; let panelWin; let galleryWin; let tray;
 const alive = (w) => !!w && !w.isDestroyed(); // a closed window throws on any call
 let sources = null; let ctx = null;
 const allowed = new Set(); // files the gallery may read through leaf://
 const sourceOf = new Map(); // converted file -> original photo (for Photo info)
-let exifFiles = [];        // photos the Photo info view can page through
+let exifFiles = [];
+const galleryResults = new Map(); // gallery webContents id -> result it shows        // photos the Photo info view can page through
 let state = { phase: 'idle', recent: [] };
 
 function broadcast() {
@@ -105,7 +108,7 @@ async function handleDrop(paths, { auto = false } = {}) {
   setState({ phase: 'reading', proposal: null, result: null });
   showPanel();
   try {
-    sources = await inspect(paths);
+    sources = await enrich(await inspect(paths));
     setState({ phase: 'proposal', proposal: propose(sources) });
     if (auto && !state.proposal.actions[0].disabled) act(0);
   } catch (e) {
@@ -113,9 +116,10 @@ async function handleDrop(paths, { auto = false } = {}) {
   }
 }
 
-async function act(index) {
-  const action = state.proposal?.actions?.[index];
-  if (!action || action.disabled || !sources) return;
+async function act(index, value) {
+  const picked = state.proposal?.actions?.[index];
+  if (!picked || picked.disabled || !sources) return;
+  const action = value != null ? { ...picked, value } : picked;
   if (action.id === 'exif') {
     exifFiles = sources.flatMap((s) => s.items).filter(isPhoto).map((it) => ({ name: it.name, get: () => raw.onDisk(it) }));
     return showExif(0, true);
@@ -126,12 +130,14 @@ async function act(index) {
     const result = await engine.run(sources, action, ctx);
     sources = null;
     result.outputs.forEach((o) => allowed.add(o.path));
+    for (const p of [...result.outputs.map((o) => o.path), ...result.dirs]) { const rel = path.relative(pileDir(), p); if (rel && !rel.startsWith('..') && !path.isAbsolute(rel)) pileIgnore.add(rel.split(path.sep)[0]); }
     result.outputs.forEach((o) => { if (o.thumb) allowed.add(o.thumb); if (o.source) sourceOf.set(o.path, o.source); });
     result.title = result.dirs[0] ? path.basename(result.dirs[0]) : result.outputs[0] ? path.basename(path.dirname(result.outputs[0].path)) : '';
     result.size = mb(result.outputs.reduce((a, o) => a + (o.bytes || 0), 0));
     result.images = result.outputs.filter((o) => o.thumb).length;
     const recent = result.outputs.length ? [{ title: result.title, images: result.images, count: result.outputs.length, result, at: Date.now() }, ...state.recent].slice(0, 4) : state.recent;
     setState({ phase: 'done', result, recent, unseen: !panelWin.isVisible() });
+    if (action.open && result.outputs[0] && !result.failures.length) shell.openPath(result.outputs[0].path);
     if (!panelWin.isVisible()) leafWin.webContents.send('nudge');
   } catch (e) {
     setState({ phase: 'error', error: e.message });
@@ -152,6 +158,52 @@ async function showExif(index, back = state.exif?.back) {
 }
 const exifText = (info) => [info.camera, info.hero.join('  '), ...info.rows.map(([k, v]) => `${k}: ${v}`)].join('\n');
 
+// ---------- Leaf Pile: an optional desktop folder that works like a drop target ----------
+const { execFile } = require('node:child_process');
+const pileDir = () => path.join(app.getPath('desktop'), 'Leaf Pile');
+let pileWatcher = null; const pileIgnore = new Set();
+function makePile() {
+  const dir = pileDir(); fs.mkdirSync(dir, { recursive: true });
+  if (process.platform === 'win32') {
+    const ini = path.join(dir, 'desktop.ini'); const ico = path.join(dir, '.leaf-pile.ico');
+    const run = (cmd, args) => new Promise((r) => execFile(cmd, args, { windowsHide: true }, () => r()));
+    (async () => {
+      await run('attrib', ['-h', '-s', ini]); await run('attrib', ['-h', ico]); // hidden/system files can't be overwritten
+      fs.writeFileSync(ico, fs.readFileSync(path.join(UI, 'leaf-pile.ico')));
+      fs.writeFileSync(ini, '[.ShellClassInfo]\r\nIconResource=.leaf-pile.ico,0\r\nInfoTip=Drop or save files here and Leaf picks them up.\r\n[ViewState]\r\nMode=\r\nVid=\r\nFolderType=Generic\r\n');
+      await run('attrib', ['+h', '+s', ini]); await run('attrib', ['+h', ico]); await run('attrib', ['+r', dir]); // +r tells Explorer to read desktop.ini
+      await run('ie4uinit.exe', ['-show']); // refresh the icon cache (Windows 10/11)
+    })().catch(logError);
+  }
+  watchPile();
+}
+function watchPile() {
+  if (pileWatcher || !fs.existsSync(pileDir())) return;
+  const dir = pileDir(); const known = new Set(fs.readdirSync(dir)); const fresh = new Set(); let timer;
+  const flush = async () => {
+    if (state.phase === 'working' || state.phase === 'reading') { timer = setTimeout(flush, 1500); return; }
+    const names = [...fresh].filter((n) => !known.has(n) && !pileIgnore.has(n)); fresh.clear();
+    const paths = names.map((n) => path.join(dir, n)).filter((p) => fs.existsSync(p));
+    // Wait until files stop growing (downloads, scanner output, Outlook "Save as").
+    const size = (p) => { try { const st = fs.statSync(p); return st.isDirectory() ? -1 : st.size; } catch { return -2; } };
+    for (let i = 0; i < 20; i++) { const a = paths.map(size); await new Promise((r) => setTimeout(r, 700)); if (paths.map(size).every((v, k) => v === a[k])) break; }
+    names.forEach((n) => known.add(n));
+    if (paths.length) handleDrop(paths);
+  };
+  try {
+    pileWatcher = fs.watch(dir, (_ev, name) => {
+      if (!name || name.includes(path.sep) || /^(desktop\.ini|\.leaf-pile\.ico)$/i.test(name) || /^~\$|^\.|\.(tmp|crdownload|part|partial|download|opdownload)$/i.test(name)) return;
+      fresh.add(name); clearTimeout(timer); timer = setTimeout(flush, 1500);
+    });
+    pileWatcher.on('error', () => { pileWatcher = null; });
+  } catch { pileWatcher = null; }
+}
+function setPile(on) {
+  settings.pile = !!on; save();
+  if (on) makePile(); else if (pileWatcher) { pileWatcher.close(); pileWatcher = null; }
+  setState({ pileOffer: false }); tray?.setContextMenu(trayMenu());
+}
+
 function throttle(fn, ms) {
   let last = 0; let t;
   return (...a) => { const now = Date.now(); clearTimeout(t); if (now - last > ms || a[0] === a[1]) { last = now; fn(...a); } else t = setTimeout(() => { last = Date.now(); fn(...a); }, ms); };
@@ -168,9 +220,10 @@ function openGallery(result = state.result) {
       resizable: true, minimizable: true, maximizable: true, fullscreenable: true, skipTaskbar: false, minWidth: 560, minHeight: 420, title: 'Leaf' });
     galleryWin.loadFile(path.join(UI, 'gallery.html'), { query: { glass: systemGlass ? 'system' : 'css' } });
     galleryWin.once('ready-to-show', () => alive(galleryWin) && galleryWin.show());
-    galleryWin.on('closed', () => { galleryWin = null; });
+    const wcId = galleryWin.webContents.id;
+    galleryWin.on('closed', () => { galleryWin = null; galleryResults.delete(wcId); });
   } else galleryWin.focus();
-  galleryWin.result = result;
+  galleryResults.set(galleryWin.webContents.id, result);
   galleryWin.webContents.send('gallery', result);
 }
 
@@ -187,9 +240,10 @@ ipcMain.on('leaf:move', (_e, { x, y }) => { leafWin.setPosition(Math.round(x), M
 ipcMain.on('leaf:moved', () => { const [x, y] = leafWin.getPosition(); settings.position = { x, y }; save(); });
 ipcMain.handle('leaf:pos', () => leafWin.getPosition());
 ipcMain.on('panel:height', (_e, h) => placePanel(Math.min(640, Math.max(120, h))));
-ipcMain.on('panel:act', (_e, i) => act(i));
+ipcMain.on('panel:act', (_e, i, value) => act(i, typeof value === 'string' ? value : undefined));
 ipcMain.on('panel:cancel', () => { if (state.phase === 'working' && ctx) ctx.cancelled = true; else { sources = null; setState({ phase: 'idle' }); hidePanel(); } });
 ipcMain.on('panel:hide', hidePanel);
+ipcMain.on('panel:pile', (_e, yes) => setPile(yes));
 ipcMain.on('panel:exif-step', (_e, d) => { const n = exifFiles.length; if (n) showExif((state.exif.index + d + n) % n); });
 ipcMain.on('panel:exif-back', () => setState({ phase: sources ? 'proposal' : 'idle', exif: null }));
 ipcMain.on('panel:exif-copy', () => state.exif?.info && clipboard.writeText(exifText(state.exif.info)));
@@ -208,7 +262,7 @@ ipcMain.on('panel:gallery', (_e, i) => openGallery(i == null ? state.result : st
 ipcMain.on('panel:folder', () => { const r = state.result; if (r?.dirs[0]) shell.openPath(r.dirs[0]); else if (r?.outputs[0]) shell.showItemInFolder(r.outputs[0].path); });
 ipcMain.on('panel:open', (_e, p) => allowed.has(p) && shell.openPath(p));
 ipcMain.handle('email', async (_e, files, opts) => emailFiles(files.filter((f) => allowed.has(f)), opts));
-ipcMain.handle('gallery:get', (e) => BrowserWindow.fromWebContents(e.sender)?.result);
+ipcMain.handle('gallery:get', (e) => galleryResults.get(e.sender.id));
 ipcMain.on('gallery:fullscreen', (e, on) => BrowserWindow.fromWebContents(e.sender)?.setFullScreen(!!on));
 ipcMain.on('gallery:close', (e) => BrowserWindow.fromWebContents(e.sender)?.close());
 ipcMain.on('gallery:min', (e) => BrowserWindow.fromWebContents(e.sender)?.minimize());
@@ -229,11 +283,12 @@ function trayMenu() {
     { label: 'Show Leaf', click: () => { leafWin.show(); showPanel(); } },
     { label: 'Reset position', click: () => { settings.position = null; save(); const p = leafHome(); leafWin.setPosition(p.x, p.y); } },
     { type: 'separator' },
-    { label: 'Start with Windows', type: 'checkbox', checked: app.getLoginItemSettings().openAtLogin, click: (i) => app.setLoginItemSettings({ openAtLogin: i.checked }) },
+    { label: 'Start with Windows', type: 'checkbox', checked: app.getLoginItemSettings({ path: exePath }).openAtLogin, click: (i) => app.setLoginItemSettings({ openAtLogin: i.checked, path: exePath }) },
     ...(sendTo ? [{ label: 'Add to right-click “Send to”', type: 'checkbox', checked: fs.existsSync(sendTo), click: (i) => {
-      if (i.checked) shell.writeShortcutLink(sendTo, { target: process.execPath, args: app.isPackaged ? '' : `"${app.getAppPath()}"`, description: 'Convert with Leaf' });
+      if (i.checked) shell.writeShortcutLink(sendTo, { target: exePath, args: app.isPackaged ? '' : `"${app.getAppPath()}"`, description: 'Convert with Leaf', icon: exePath, iconIndex: 0 });
       else fs.rmSync(sendTo, { force: true });
     } }] : []),
+    { label: 'Leaf Pile folder on desktop', type: 'checkbox', checked: settings.pile === true, click: (i) => setPile(i.checked) },
     { label: 'Glass: use Windows acrylic', type: 'checkbox', checked: settings.glass !== 'css', click: (i) => { settings.glass = i.checked ? 'auto' : 'css'; save(); app.relaunch(); app.exit(0); } },
     { type: 'separator' },
     { label: 'Quit Leaf', click: () => app.quit() },
@@ -246,7 +301,7 @@ app.on('second-instance', (_e, argv) => { const p = argPaths(argv); if (p.length
 
 app.whenReady().then(() => {
   if (process.platform === 'win32') app.setAppUserModelId('ca.vistek.leaf');
-  fs.rmSync(path.join(os.tmpdir(), 'leaf-src'), { recursive: true, force: true }); // temp copies from last session
+  for (const t of ['leaf-src', 'leaf-thumbs', 'leaf-email', 'leaf-render']) fs.rmSync(path.join(os.tmpdir(), t), { recursive: true, force: true }); // last session's temp files
   const APP_ROOT = path.join(__dirname, '..');
   const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.wasm': 'application/wasm', '.css': 'text/css' };
   protocol.handle('leaf', async (req) => {
@@ -264,14 +319,21 @@ app.whenReady().then(() => {
     return allowed.has(p) ? net.fetch(pathToFileURL(p).toString()) : new Response('', { status: 404 });
   });
   createLeaf(); createPanel();
-  tray = new Tray(nativeImage.createFromPath(path.join(UI, 'tray.png')).resize({ width: 16, height: 16 }));
+  // 32 px source declared as @2x: crisp at 100% and 200% scaling.
+  tray = new Tray(nativeImage.createFromBuffer(fs.readFileSync(path.join(UI, 'tray.png')), { scaleFactor: 2 }));
   tray.setToolTip('Leaf — drop anything to convert');
   tray.setContextMenu(trayMenu());
   tray.on('click', () => { leafWin.show(); showPanel(); });
   nativeTheme.on('updated', broadcast);
   const p = argPaths(process.argv); if (p.length) leafWin.webContents.once('did-finish-load', () => handleDrop(p, { auto: process.argv.includes('--auto') }));
+  if (settings.pile === true) makePile();
+  if (!settings.welcomed) {
+    settings.welcomed = true; save();
+    setState({ pileOffer: settings.pile === undefined });
+    if (!p.length) leafWin.webContents.once('did-finish-load', () => setTimeout(showPanel, 1200));
+  }
   screen.on('display-metrics-changed', () => { const h = leafHome(); leafWin.setPosition(h.x, h.y); });
 });
 ipcMain.on('ready', broadcast);
 app.on('window-all-closed', (e) => e.preventDefault());
-app.on('before-quit', () => { engine.shutdown(); darkroom.close(); raw.endExiftool(); });
+app.on('before-quit', () => { engine.shutdown(); darkroom.close(); require('./engine/render').close(); raw.endExiftool(); });

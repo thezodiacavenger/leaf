@@ -4,12 +4,13 @@ const fsp = require('node:fs/promises');
 const path = require('node:path');
 const os = require('node:os');
 const { nativeImage } = require('electron');
-const { PDFDocument } = require('pdf-lib');
+const { PDFDocument } = require('@cantoo/pdf-lib');
 const { DecodePool } = require('./pool');
 const { NATIVE_DECODE, isPhoto } = require('./sources');
 const office = require('./office');
 const raw = require('./raw');
 const darkroom = require('./darkroom');
+const docs = require('./docs');
 
 let pool; let thumbSeq = 0;
 const getPool = () => (pool ||= new DecodePool());
@@ -104,7 +105,9 @@ async function run(sources, action, ctx) {
   const jobId = `${Date.now().toString(36)}`;
   const quality = ctx.settings?.jpegQuality ?? 90;
 
-  if (action.id === 'convert' || action.id === 'shrink') {
+  if (docs.handles(action.id)) {
+    await docs.run(sources, action, ctx, { each, toImage, fit, uniquePath });
+  } else if (action.id === 'convert' || action.id === 'shrink') {
     const target = action.id === 'shrink' ? 'jpeg' : action.target;
     const ext = target === 'png' ? '.png' : '.jpg';
     const tag = action.id === 'shrink' ? 'email size' : target.toUpperCase();
@@ -178,14 +181,6 @@ async function run(sources, action, ctx) {
         await fsp.writeFile(dest, await it.read()); ctx.outputs.push({ path: dest, name: it.name, bytes: it.size, kind: 'file' });
       });
     }
-  } else if (action.id === 'doc-pdf' || action.id === 'doc-attach') {
-    const docs = sources.flatMap((s) => s.items).filter((it) => it.kind === 'doc' && it.abs);
-    await each(docs, 1, ctx, async (it) => {
-      const dest = uniquePath(path.join(path.dirname(it.abs), `${path.parse(it.abs).name}.pdf`));
-      await office.docToPdf(it.abs, dest);
-      ctx.outputs.push({ path: dest, name: path.basename(dest), bytes: fs.statSync(dest).size, kind: 'pdf' });
-    });
-    if (action.id === 'doc-attach' && ctx.outputs.length) await office.composeMail({ attachments: ctx.outputs.map((o) => o.path), subject: path.parse(docs[0].name).name });
   } else if (action.id === 'doc-mail') {
     const doc = sources.flatMap((s) => s.items).find((it) => it.kind === 'doc' && it.abs);
     ctx.progress(0, 1, doc.name);

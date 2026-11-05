@@ -12,10 +12,20 @@ const NATIVE_DECODE = new Set(['.jpg', '.jpeg', '.png', '.bmp', '.ico']); // wha
 const TIFF = new Set(['.tif', '.tiff']);
 const DOC = new Set(['.docx', '.doc', '.rtf', '.odt', '.docm']);
 const ARCHIVE = new Set(['.zip']);
+const EMAIL = new Set(['.msg', '.eml']);
+const SHEET = new Set(['.xlsx', '.xls', '.xlsm', '.xlsb', '.ods']);
+const SLIDES = new Set(['.pptx', '.ppt', '.pptm', '.odp']);
+const TEXT = new Set(['.txt', '.log', '.md']);
 const JUNK = /(^|\/)(__MACOSX\/|\._|\.DS_Store$|Thumbs\.db$|desktop\.ini$)/i;
 const MAX_WALK = 10000;
 
-function kindOf(ext) {
+function kindOf(ext, name = '') {
+  if (/^winmail\.dat$/i.test(name) || ext === '.tnef') return 'tnef';
+  if (EMAIL.has(ext)) return 'email';
+  if (SHEET.has(ext)) return 'sheet';
+  if (SLIDES.has(ext)) return 'slides';
+  if (ext === '.csv') return 'csv';
+  if (TEXT.has(ext)) return 'text';
   if (HEIC.has(ext)) return 'heic';
   if (RAW.has(ext)) return 'raw';
   if (TIFF.has(ext)) return 'tiff';
@@ -59,7 +69,7 @@ async function listZip(file) {
     if (e.fileName.endsWith('/') || JUNK.test(e.fileName)) continue;
     const rel = safeRel(e.fileName); if (!rel) continue;
     const ext = path.extname(rel).toLowerCase();
-    items.push({ rel, name: path.basename(rel), ext, kind: kindOf(ext), size: e.uncompressedSize, read: () => readEntry(e) });
+    items.push({ rel, name: path.basename(rel), ext, kind: kindOf(ext, path.basename(rel)), size: e.uncompressedSize, read: () => readEntry(e) });
   }
   // "Trip.zip" containing only "Trip/..." -> don't nest Trip twice in the output.
   const top = items.length && items[0].rel.includes('/') ? items[0].rel.split('/')[0] + '/' : null;
@@ -77,7 +87,7 @@ async function walkDir(root) {
       if (d.isDirectory()) { stack.push(rel); continue; }
       if (!d.isFile()) continue;
       const abs = path.join(root, rel); const ext = path.extname(d.name).toLowerCase();
-      items.push({ rel, name: d.name, ext, kind: kindOf(ext), abs, size: fs.statSync(abs).size, read: () => fsp.readFile(abs) });
+      items.push({ rel, name: d.name, ext, kind: kindOf(ext, d.name), abs, size: fs.statSync(abs).size, read: () => fsp.readFile(abs) });
     }
   }
   return items;
@@ -96,10 +106,18 @@ async function inspect(paths) {
       sources.push({ type: 'zip', path: p, label: path.basename(p), size: st.size, items: z.items, close: z.close });
     } else {
       sources.push({ type: 'file', path: p, label: path.basename(p), size: st.size,
-        items: [{ rel: path.basename(p), name: path.basename(p), ext, kind: kindOf(ext), abs: p, size: st.size, read: () => fsp.readFile(p) }] });
+        items: [{ rel: path.basename(p), name: path.basename(p), ext, kind: kindOf(ext, path.basename(p)), abs: p, size: st.size, read: () => fsp.readFile(p) }] });
     }
   }
   return sources;
 }
 
-module.exports = { inspect, kindOf, NATIVE_DECODE, HEIC, RASTER, DOC, TIFF, isPhoto: (it) => ['heic', 'raw', 'tiff'].includes(it.kind) || (it.kind === 'raster' && NATIVE_DECODE.has(it.ext)) };
+// Looks a little deeper at PDFs and TIFFs so the suggestion fits (locked? form? scanned? fax?).
+async function enrich(sources) {
+  const items = sources.flatMap((s) => s.items).filter((it) => it.abs && it.size < 150e6);
+  for (const it of items.filter((x) => x.kind === 'pdf').slice(0, 30)) { try { it.facts = await require('./pdf').facts(await it.read()); } catch {} }
+  for (const it of items.filter((x) => x.kind === 'tiff').slice(0, 30)) { try { it.pages = require('./report').tiffPageCount(await it.read()); } catch {} }
+  return sources;
+}
+
+module.exports = { enrich, inspect, kindOf, NATIVE_DECODE, HEIC, RASTER, DOC, TIFF, isPhoto: (it) => ['heic', 'raw', 'tiff'].includes(it.kind) || (it.kind === 'raster' && NATIVE_DECODE.has(it.ext)) };
