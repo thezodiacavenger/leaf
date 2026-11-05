@@ -50,6 +50,16 @@
   #lb .nav { position: absolute; top: 50%; transform: translateY(-50%); width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center; color: #fff; background: rgba(255,255,255,.08); opacity: 0; transition: opacity .2s; }
   #lb .stage:hover .nav { opacity: 1; } #lb .nav:hover { background: rgba(255,255,255,.16); }
   #lb .prev { left: 24px; } #lb .next { right: 24px; }
+  #sheet { position: absolute; top: 16px; right: 16px; bottom: 16px; width: 300px; border-radius: 16px; background: rgba(28, 30, 38, .82); backdrop-filter: blur(30px) saturate(1.4);
+    border: 1px solid rgba(255,255,255,.1); padding: 18px; overflow: auto; display: none; animation: fade .2s var(--ease); scrollbar-width: thin; }
+  #lb.info #sheet { display: block; } #lb.info .next { right: 340px; }
+  #sheet h2 { font: 600 15px var(--font-display); color: #fff; } #sheet .nm { color: rgba(242,244,248,.55); font-size: 12px; margin-top: 2px; }
+  #sheet .hero { display: flex; flex-wrap: wrap; gap: 6px; margin: 14px 0 6px; }
+  #sheet .hero span { font: 600 12.5px/1 var(--font-display); padding: 7px 9px; border-radius: 8px; background: rgba(255,255,255,.08); }
+  #sheet dl { display: grid; grid-template-columns: 92px 1fr; gap: 7px 10px; font-size: 12px; margin-top: 10px; }
+  #sheet dt { color: rgba(242,244,248,.5); } #sheet dd { margin: 0; overflow-wrap: anywhere; -webkit-user-select: text; user-select: text; }
+  #sheet button { margin-top: 14px; padding: 7px 12px; border-radius: 9px; color: #f2f4f8; background: rgba(255,255,255,.08); display: inline-flex; gap: 7px; align-items: center; }
+  #sheet button:hover { background: rgba(255,255,255,.14); }
   #toast { position: fixed; left: 50%; bottom: 28px; transform: translate(-50%, 20px); padding: 9px 16px; border-radius: 99px; background: var(--ink); color: var(--glass); font-size: 12.5px; opacity: 0; transition: all .3s var(--spring); z-index: 20; pointer-events: none; }
   #toast.show { opacity: 1; transform: translate(-50%, 0); }
   .hint { color: var(--ink-3); font-size: 11.5px; padding: 28px 0 0 2px; }
@@ -66,6 +76,7 @@
   <symbol id="copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2.5"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></symbol>
   <symbol id="open" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4"/></symbol>
   <symbol id="all" viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></symbol>
+  <symbol id="infoi" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5h.01"/></symbol>
   <symbol id="l" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></symbol>
   <symbol id="r" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></symbol>
 </svg>
@@ -73,7 +84,7 @@
   <div class="win"><button data-w="min" title="Minimize"><svg class="i"><use href="#min"/></svg></button><button data-w="max" title="Maximize"><svg class="i"><use href="#max"/></svg></button><button class="close" data-w="close" title="Close (Ctrl+W)"><svg class="i"><use href="#close"/></svg></button></div>
 </header>
 <main><div class="grid" id="grid" role="listbox" aria-label="Converted images"></div>
-  <div class="hint">Arrows or Tab to move · Space to view full screen · X or Ctrl+click to select · Ctrl+C copies</div></main>
+  <div class="hint">Arrows or Tab to move · Space to view full screen · I for photo info · X or Ctrl+click to select · Ctrl+C copies</div></main>
 <aside>
   <div class="count" id="count"></div>
   <button data-a="email" data-tip="Email"><svg class="i"><use href="#mail"/></svg></button>
@@ -84,9 +95,9 @@
   <button data-a="open" data-tip="Open in default app"><svg class="i"><use href="#open"/></svg></button>
   <button data-a="all" data-tip="Select all (Ctrl+A)"><svg class="i"><use href="#all"/></svg></button>
 </aside>
-<div id="lb"><div class="stage"><img id="big" alt=""><button class="nav prev" data-n="-1"><svg class="i"><use href="#l"/></svg></button><button class="nav next" data-n="1"><svg class="i"><use href="#r"/></svg></button></div>
+<div id="lb"><div class="stage"><img id="big" alt=""><button class="nav prev" data-n="-1"><svg class="i"><use href="#l"/></svg></button><button class="nav next" data-n="1"><svg class="i"><use href="#r"/></svg></button><div id="sheet"></div></div>
   <div class="bar"><b id="lbName"></b><span id="lbMeta"></span><span class="sp"></span>
-    <button data-a="copy"><svg class="i"><use href="#copy"/></svg>Copy</button><button data-a="email1"><svg class="i"><use href="#mail"/></svg>Email</button><button data-a="open"><svg class="i"><use href="#open"/></svg>Open</button><button data-a="closeLb">Esc</button></div></div>
+    <button data-a="info"><svg class="i"><use href="#infoi"/></svg>Info <kbd>I</kbd></button><button data-a="copy"><svg class="i"><use href="#copy"/></svg>Copy</button><button data-a="email1"><svg class="i"><use href="#mail"/></svg>Email</button><button data-a="open"><svg class="i"><use href="#open"/></svg>Open</button><button data-a="closeLb">Esc</button></div></div>
 <div id="toast"></div>
 <script>
   if (new URLSearchParams(location.search).get('glass') === 'system') document.body.classList.add('sys');
@@ -116,6 +127,19 @@
     document.getElementById('lbName').textContent = o.name;
     document.getElementById('lbMeta').textContent = `${o.width} × ${o.height} · ${mb(o.bytes)} · ${cur + 1} of ${items.length}`;
     [cur - 1, cur + 1].forEach((k) => { if (items[k]) new Image().src = leaf.url(items[k].path); }); // preload neighbours
+    if (lb.classList.contains('info')) loadInfo();
+  }
+  let infoSeq = 0; let lastGps = null;
+  async function loadInfo() {
+    const sheet = document.getElementById('sheet'); const my = ++infoSeq; const o = items[cur];
+    sheet.innerHTML = `<h2>${esc(o.name)}</h2><div class="nm">Reading…</div>`;
+    const i = await leaf.invoke('gallery:info', o.path); if (my !== infoSeq) return;
+    if (!i) { sheet.innerHTML = `<h2>${esc(o.name)}</h2><div class="nm">No photo info found</div>`; return; }
+    lastGps = i.gps;
+    sheet.innerHTML = `<h2>${esc(i.camera)}</h2><div class="nm">${esc(i.name)}</div>` +
+      (i.hero.length ? `<div class="hero">${i.hero.map((v) => `<span>${esc(v)}</span>`).join('')}</div>` : '') +
+      `<dl>${i.rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>` +
+      (i.gps ? `<button data-a="map"><svg class="i"><use href="#open"/></svg>Open map</button>` : '');
   }
   function closeLb() { lb.classList.remove('open'); leaf.send('gallery:fullscreen', false); focusAt(cur); }
   const step = (d) => { cur = (cur + d + items.length) % items.length; showLb(); };
@@ -135,6 +159,8 @@
       const r = await leaf.invoke('email', files, { shrink });
       if (r?.via === 'fallback') toast('Outlook not found — files shown so you can attach them');
     } else if (a === 'closeLb') closeLb();
+    else if (a === 'info') { lb.classList.toggle('info'); if (lb.classList.contains('info')) loadInfo(); }
+    else if (a === 'map') leaf.send('gallery:map', lastGps);
   }
 
   grid.addEventListener('click', (e) => {
@@ -154,6 +180,7 @@
       if (k === 'Escape' || k === ' ') { e.preventDefault(); closeLb(); }
       else if (k === 'ArrowRight' || k === 'ArrowDown') step(1); else if (k === 'ArrowLeft' || k === 'ArrowUp') step(-1);
       else if (ctrl && k.toLowerCase() === 'c') action('copy');
+      else if (k.toLowerCase() === 'i') action('info');
       return;
     }
     if (ctrl && k.toLowerCase() === 'w') return leaf.send('gallery:close');

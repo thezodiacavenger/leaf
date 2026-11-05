@@ -1,0 +1,71 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Leaf darkroom</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'unsafe-inline'; worker-src 'self'; connect-src 'self'">
+</head><body>
+<script type="module">
+// Hidden, cross-origin-isolated page that develops RAW files with LibRaw (WebAssembly, multithreaded).
+// Receives the file bytes from the main process and returns a full-resolution BGRA bitmap.
+import LibRaw from '../../node_modules/libraw-wasm/dist/index.js';
+
+// Histogram of each channel (R, G, B), sampling every `step`-th pixel. `stride` = bytes per pixel.
+function histograms(data, n, stride, step) {
+  const h = [new Float64Array(256), new Float64Array(256), new Float64Array(256)];
+  for (let p = 0; p < n; p += step) { const i = p * stride; h[0][data[i]]++; h[1][data[i + 1]]++; h[2][data[i + 2]]++; }
+  return h;
+}
+// Per-channel tone curve that makes the developed image's histogram match the camera's own JPEG:
+// full sensor resolution, camera-maker colours and contrast.
+function matchCurves(src, ref) {
+  return src.map((hs, c) => {
+    const hr = ref[c]; const cs = new Float64Array(256); const cr = new Float64Array(256);
+    let a = 0, b = 0; const ts = hs.reduce((x, y) => x + y, 0) || 1, tr = hr.reduce((x, y) => x + y, 0) || 1;
+    for (let v = 0; v < 256; v++) { a += hs[v]; b += hr[v]; cs[v] = a / ts; cr[v] = b / tr; }
+    const lut = new Uint8Array(256); let j = 0;
+    for (let v = 0; v < 256; v++) { while (j < 255 && cr[j] < cs[v]) j++; lut[v] = j; }
+    for (let v = 1; v < 256; v++) if (lut[v] < lut[v - 1]) lut[v] = lut[v - 1]; // keep it monotonic
+    const sm = new Uint8Array(256); // light smoothing so gradients stay clean
+    for (let v = 0; v < 256; v++) { let s = 0, k = 0; for (let d = -3; d <= 3; d++) { const u = v + d; if (u >= 0 && u < 256) { s += lut[u]; k++; } } sm[v] = Math.round(s / k); }
+    return sm;
+  });
+}
+async function previewHist(jpeg) {
+  if (!jpeg) return null;
+  try {
+    const bmp = await createImageBitmap(new Blob([jpeg], { type: 'image/jpeg' }));
+    const c = new OffscreenCanvas(bmp.width, bmp.height); const g = c.getContext('2d'); g.drawImage(bmp, 0, 0);
+    const px = g.getImageData(0, 0, bmp.width, bmp.height).data;
+    return histograms(px, bmp.width * bmp.height, 4, 1);
+  } catch { return null; }
+}
+
+darkroom.onJob(async ({ id, bytes, ext, preview }) => {
+  const raw = new LibRaw();
+  try {
+    await raw.open(bytes, {
+      useCameraWb: true,          // the white balance the photographer shot with
+      outputColor: 1,             // sRGB
+      outputBps: 8,
+      userQual: ext === '.raf' ? 2 : 3, // X-Trans: 1-pass demosaic (≈3× faster); others: AHD
+      highlight: 0,
+      userFlip: -1,               // apply the camera's rotation
+    });
+    const img = await raw.imageData();
+    const { width, height, data } = img;
+    const n = width * height; const out = new Uint8Array(n * 4);
+    if (img.colors === 3) {
+      const ref = await previewHist(preview);
+      const [R, G, B] = ref ? matchCurves(histograms(data, n, 3, 7), ref) : [0, 1, 2].map(() => Uint8Array.from({ length: 256 }, (_, v) => v));
+      for (let i = 0, j = 0; i < n * 3; i += 3, j += 4) { out[j] = B[data[i + 2]]; out[j + 1] = G[data[i + 1]]; out[j + 2] = R[data[i]]; out[j + 3] = 255; }
+    } else {
+      for (let i = 0, j = 0; i < n; i++, j += 4) { const v = data[i]; out[j] = v; out[j + 1] = v; out[j + 2] = v; out[j + 3] = 255; }
+    }
+    darkroom.done(id, { width, height, data: out });
+  } catch (e) {
+    darkroom.done(id, { error: String((e && e.message) || e || 'could not develop this RAW') });
+  } finally {
+    raw.dispose();
+  }
+});
+darkroom.ready();
+</script>
+</body></html>

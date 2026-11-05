@@ -57,6 +57,24 @@
   .recent button { display: flex; justify-content: space-between; padding: 8px 10px; border-radius: 9px; text-align: left; color: var(--ink-2); }
   .recent button:hover { background: var(--hover); color: var(--ink); }
   .label { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); margin-top: 16px; }
+  .hero { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 16px; }
+  .hero span { font: 600 13px/1 var(--font-display); padding: 8px 10px; border-radius: 9px; background: var(--hover); border: 1px solid var(--line); letter-spacing: -.01em; }
+  .kv { display: grid; grid-template-columns: 104px 1fr; gap: 7px 12px; margin-top: 14px; font-size: 12.5px; }
+  .kv dt { color: var(--ink-3); } .kv dd { margin: 0; color: var(--ink); overflow-wrap: anywhere; -webkit-user-select: text; user-select: text; }
+  .tools { display: flex; gap: 6px; margin-top: 16px; flex-wrap: wrap; }
+  .tool { display: inline-flex; align-items: center; gap: 6px; padding: 7px 10px; border-radius: 9px; border: 1px solid var(--line); color: var(--ink-2); font-size: 12.5px; }
+  .tool:hover { background: var(--hover); color: var(--ink); } .tool svg { width: 15px; height: 15px; }
+  .pager { display: inline-flex; align-items: center; gap: 2px; margin-left: 4px; }
+  .pager button { width: 22px; height: 22px; border-radius: 6px; display: inline-grid; place-items: center; color: var(--ink-2); }
+  .pager button:hover { background: var(--hover); color: var(--ink); } .pager svg { width: 14px; height: 14px; }
+  .skel { height: 12px; border-radius: 6px; background: linear-gradient(90deg, var(--hover), var(--press), var(--hover)); background-size: 200% 100%; animation: flow 1.2s linear infinite; margin-top: 12px; }
+  .all { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 10px; }
+  .all input { width: 100%; font: inherit; color: inherit; background: var(--hover); border: 1px solid var(--line); border-radius: 9px; padding: 8px 10px; outline: none; }
+  .all input:focus { border-color: var(--accent); }
+  .all .scroll { max-height: 330px; overflow: auto; margin-top: 8px; font-size: 11.5px; scrollbar-width: thin; -webkit-user-select: text; user-select: text; }
+  .all .g { color: var(--accent); font-weight: 600; margin: 8px 0 3px; font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; }
+  .all .t { display: grid; grid-template-columns: 44% 1fr; gap: 8px; padding: 2px 0; } .all .t span:first-child { color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; }
+  .all .t span:last-child { overflow-wrap: anywhere; }
   body.over .card { outline: 2px dashed color-mix(in srgb, var(--accent) 60%, transparent); outline-offset: -8px; }
 </style></head>
 <body>
@@ -70,6 +88,12 @@
   <symbol id="folder" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
   <symbol id="mail" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M4 7l8 6 8-6"/></symbol>
   <symbol id="check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+  <symbol id="camera" viewBox="0 0 24 24"><path d="M4 8a2 2 0 0 1 2-2h1.5l1.5-2h6l1.5 2H18a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><circle cx="12" cy="12.5" r="3.5"/></symbol>
+  <symbol id="copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2.5"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></symbol>
+  <symbol id="pin" viewBox="0 0 24 24"><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></symbol>
+  <symbol id="list" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01"/></symbol>
+  <symbol id="back" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></symbol>
+  <symbol id="next" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></symbol>
   <symbol id="leaf" viewBox="0 0 24 24"><path d="M5 19C5 10 10 5 19 5c0 9-5 14-14 14z"/><path d="M5 19L14 10"/></symbol>
 </svg>
 <div class="card" id="card"><div id="view"></div></div>
@@ -88,6 +112,7 @@
   function doneTitle(r) {
     if (r.action === 'pdf') return 'PDF ready';
     if (r.action === 'unzip') return `${r.outputs.length} files unzipped`;
+    if (r.action === 'zip') return 'Zip ready';
     if (r.action === 'doc-mail') return 'Opened in Outlook';
     if (r.action.startsWith('doc')) return r.outputs.length === 1 ? 'PDF ready' : `${r.outputs.length} PDFs ready`;
     const ext = (r.outputs[0]?.name.split('.').pop() || '').toUpperCase().replace('JPG', 'JPEG');
@@ -95,7 +120,8 @@
   }
 
   function render() {
-    const key = S.phase + (S.phase === 'done' ? S.result?.title : '') + (S.proposal?.title || '');
+    const key = S.phase + (S.phase === 'done' ? S.result?.title : '') + (S.proposal?.title || '') + (S.phase === 'exif' ? S.exif?.index : '');
+    if (S.phase === 'exif' && key !== lastKey) { query = ''; hideAll = false; }
     const fresh = key !== lastKey; lastKey = key;
     let h = '';
     if (S.phase === 'reading') h = header('leaf', 'Looking inside…', 'One moment');
@@ -120,7 +146,23 @@
           (r.outputs.length && r.action !== 'doc-mail' ? `<button class="act" data-do="email">${icon('mail')}Email</button>` : '') +
         `</div>` +
         (big && imgs.length ? `<div class="note">Over 20 MB — Email sends <b>email-size copies</b> (2048px). Originals stay full size.</div>` : '') +
+        (r.outputs[0]?.note ? `<div class="note">${esc(r.outputs[0].note)}</div>` : '') +
+        (() => { const dev = r.outputs.filter((o) => o.how === 'developed').length, cam = r.outputs.filter((o) => o.how === 'camera').length;
+          return dev || cam ? `<div class="note">${[dev && `${dev} developed from RAW at full resolution`, cam && `${cam} used the camera’s own full-size JPEG`].filter(Boolean).join(' · ')}. Camera, lens & date kept.</div>` : ''; })() +
         (fails.length ? `<details class="note"><summary><b>${fails.length} skipped</b> — see why</summary><ul>${fails.map((f) => `<li>${esc(f.name)}: ${esc(f.reason)}</li>`).join('')}</ul></details>` : '');
+    } else if (S.phase === 'exif') {
+      const x = S.exif || {}; const i = x.info;
+      const pager = x.count > 1 ? `<span class="pager"><button data-do="exif-prev" title="Previous (←)">${icon('back')}</button>${x.index + 1} of ${x.count}<button data-do="exif-next" title="Next (→)">${icon('next')}</button></span>` : '';
+      h = `<div class="head"><div class="tile">${icon('camera')}</div><div class="meta"><h1>${esc(i ? i.camera : x.name)}</h1><div class="sub">${esc(x.name)} ${pager}</div></div><button class="x" data-do="${x.back ? 'exif-back' : 'cancel'}" title="${x.back ? 'Back' : 'Close'} (Esc)">${icon('close')}</button></div>`;
+      if (x.error) h += `<div class="note">${esc(x.error)}</div>`;
+      else if (!i) h += '<div class="skel" style="width:70%"></div><div class="skel"></div><div class="skel" style="width:85%"></div><div class="skel" style="width:60%"></div>';
+      else {
+        h += (i.hero.length ? `<div class="hero">${i.hero.map((v) => `<span>${esc(v)}</span>`).join('')}</div>` : '') +
+          (x.all && !hideAll ? '' : `<dl class="kv">${i.rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>`) +
+          `<div class="tools">${x.back ? `<button class="tool" data-do="exif-back">${icon('back')}Back</button>` : ''}<button class="tool" data-do="exif-copy">${icon('copy')}Copy</button>` +
+          `<button class="tool" data-do="exif-all">${icon('list')}${x.all ? 'Hide tags' : 'All tags'}</button>${i.gps ? `<button class="tool" data-do="exif-map">${icon('pin')}Map</button>` : ''}</div>`;
+        if (x.all && !hideAll) h += `<div class="all"><input id="q" placeholder="Search ${x.all.length} tags…" value="${esc(query)}"><div class="scroll" id="tags">${tagsHtml(x.all)}</div></div>`;
+      }
     } else if (S.phase === 'error') {
       h = header('file', 'That didn’t work', S.error) + `<div class="foot"><span>Try another file</span><span>Esc to dismiss</span></div>`;
     } else {
@@ -133,7 +175,27 @@
     if (fresh) (view.querySelector('.primary:not(:disabled), .act.main') || document.body).focus?.();
   }
 
+  let query = ''; let hideAll = false;
+  function tagsHtml(all) {
+    const q = query.trim().toLowerCase(); let g = ''; let out = '';
+    for (const [grp, name, v] of all) {
+      if (q && !(name.toLowerCase().includes(q) || v.toLowerCase().includes(q) || grp.toLowerCase().includes(q))) continue;
+      if (grp !== g) { g = grp; out += `<div class="g">${esc(grp)}</div>`; }
+      out += `<div class="t"><span title="${esc(name)}">${esc(name.replace(/([a-z])([A-Z])/g, '$1 $2'))}</span><span>${esc(v.length > 300 ? v.slice(0, 300) + '…' : v)}</span></div>`;
+    }
+    return out || '<div class="note">No matching tags</div>';
+  }
+  view.addEventListener('input', (e) => { if (e.target.id === 'q') { query = e.target.value; document.getElementById('tags').innerHTML = tagsHtml(S.exif.all); } });
+
   async function doIt(what) {
+    if (what.startsWith('exif-')) {
+      if (what === 'exif-prev') leaf.send('panel:exif-step', -1);
+      else if (what === 'exif-next') leaf.send('panel:exif-step', 1);
+      else if (what === 'exif-all') { if (S.exif.all) { hideAll = !hideAll; render(); } else { hideAll = false; leaf.send('panel:exif-all'); } }
+      else leaf.send('panel:' + what);
+      if (what === 'exif-copy') { const b = view.querySelector('[data-do="exif-copy"]'); if (b) b.lastChild.textContent = 'Copied'; }
+      return;
+    }
     const r = S.result;
     if (what === 'cancel') leaf.send('panel:cancel');
     else if (what === 'gallery') leaf.send('panel:gallery');
@@ -152,10 +214,14 @@
     const r = e.target.closest('[data-recent]'); if (r) leaf.send('panel:gallery', +r.dataset.recent);
   });
   addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') return leaf.send('panel:cancel');
+    if (e.key === 'Escape') return leaf.send(S.phase === 'exif' && S.exif?.back ? 'panel:exif-back' : 'panel:cancel');
     if (S.phase === 'proposal') {
       if (e.key === 'Enter' && !(document.activeElement instanceof HTMLButtonElement)) { e.preventDefault(); leaf.send('panel:act', 0); }
       const n = +e.key; if (n >= 2 && n <= 9) leaf.send('panel:act', n - 1);
+    } else if (S.phase === 'exif') {
+      if (e.target.id === 'q') return;
+      if (e.key === 'ArrowLeft') doIt('exif-prev'); else if (e.key === 'ArrowRight') doIt('exif-next');
+      else if (e.key.toLowerCase() === 'c') doIt('exif-copy'); else if (e.key.toLowerCase() === 'a') doIt('exif-all');
     } else if (S.phase === 'done') {
       if (e.key === ' ' && !(document.activeElement instanceof HTMLButtonElement)) { e.preventDefault(); doIt('gallery'); }
       if (e.key.toLowerCase() === 'o') doIt('folder');

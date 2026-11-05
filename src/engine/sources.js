@@ -4,10 +4,12 @@ const fs = require('node:fs');
 const fsp = require('node:fs/promises');
 const path = require('node:path');
 const yauzl = require('yauzl');
+const { RAW } = require('./raw');
 
 const HEIC = new Set(['.heic', '.heif', '.hif']);
 const RASTER = new Set(['.jpg', '.jpeg', '.png', '.bmp', '.gif', '.webp', '.ico']);
 const NATIVE_DECODE = new Set(['.jpg', '.jpeg', '.png', '.bmp', '.ico']); // what nativeImage reads everywhere
+const TIFF = new Set(['.tif', '.tiff']);
 const DOC = new Set(['.docx', '.doc', '.rtf', '.odt', '.docm']);
 const ARCHIVE = new Set(['.zip']);
 const JUNK = /(^|\/)(__MACOSX\/|\._|\.DS_Store$|Thumbs\.db$|desktop\.ini$)/i;
@@ -15,6 +17,8 @@ const MAX_WALK = 10000;
 
 function kindOf(ext) {
   if (HEIC.has(ext)) return 'heic';
+  if (RAW.has(ext)) return 'raw';
+  if (TIFF.has(ext)) return 'tiff';
   if (RASTER.has(ext)) return 'raster';
   if (DOC.has(ext)) return 'doc';
   if (ext === '.pdf') return 'pdf';
@@ -98,4 +102,4 @@ async function inspect(paths) {
   return sources;
 }
 
-module.exports = { inspect, kindOf, NATIVE_DECODE, HEIC, RASTER, DOC };
+module.exports = { inspect, kindOf, NATIVE_DECODE, HEIC, RASTER, DOC, TIFF, isPhoto: (it) => ['heic', 'raw', 'tiff'].includes(it.kind) || (it.kind === 'raster' && NATIVE_DECODE.has(it.ext)) };

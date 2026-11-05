@@ -6,8 +6,10 @@ const os = require('node:os');
 const { nativeImage } = require('electron');
 const { PDFDocument } = require('pdf-lib');
 const { DecodePool } = require('./pool');
-const { NATIVE_DECODE } = require('./sources');
+const { NATIVE_DECODE, isPhoto } = require('./sources');
 const office = require('./office');
+const raw = require('./raw');
+const darkroom = require('./darkroom');
 
 let pool; let thumbSeq = 0;
 const getPool = () => (pool ||= new DecodePool());
@@ -26,16 +28,47 @@ function outDirFor(source, tag) {
   return uniquePath(path.join(path.dirname(source.path), `${base} (${tag})`));
 }
 
+// Decodes any supported photo. Returns the image plus a file to copy metadata from.
 async function toImage(item) {
   const buf = await item.read();
   if (item.kind === 'heic') {
     const { width, height, data } = await getPool().decode(buf);
-    return nativeImage.createFromBitmap(Buffer.from(data), { width, height });
+    return { img: nativeImage.createFromBitmap(Buffer.from(data), { width, height }), metaSrc: await raw.onDisk(item, buf) };
+  }
+  if (item.kind === 'raw') {
+    const metaSrc = await raw.onDisk(item, buf);
+    const info = await raw.rawInfo(metaSrc);
+    const emb = raw.largestJpeg(buf);
+    const full = Math.max(info.width, info.height);
+    // The camera's own JPEG when it's (nearly) full size: instant, camera colours. Otherwise develop the RAW.
+    if (emb && (!full || Math.max(emb.width, emb.height) >= 0.9 * full)) {
+      let img = nativeImage.createFromBuffer(Buffer.from(emb.data));
+      if (!img.isEmpty()) {
+        if ([3, 6, 8].includes(info.orientation)) {
+          const { width, height } = img.getSize();
+          const r = raw.rotate(img.toBitmap(), width, height, info.orientation);
+          img = nativeImage.createFromBitmap(r.data, { width: r.width, height: r.height });
+        }
+        return { img, metaSrc, how: 'camera' };
+      }
+    }
+    const d = await darkroom.develop(buf, item.ext, emb && emb.data); // camera JPEG = colour/tone reference
+    return { img: nativeImage.createFromBitmap(d.data, { width: d.width, height: d.height }), metaSrc, how: 'developed' };
+  }
+  if (item.kind === 'tiff') {
+    const UTIF = require('utif');
+    const ifds = UTIF.decode(buf);
+    const page = ifds.filter((f) => f.t256 && f.t257).sort((a, b) => b.t256[0] * b.t257[0] - a.t256[0] * a.t257[0])[0];
+    if (!page) throw new Error('no image in this TIFF');
+    UTIF.decodeImage(buf, page);
+    const rgba = UTIF.toRGBA8(page); const { width, height } = page;
+    for (let i = 0; i < rgba.length; i += 4) { const r = rgba[i]; rgba[i] = rgba[i + 2]; rgba[i + 2] = r; }
+    return { img: nativeImage.createFromBitmap(Buffer.from(rgba.buffer, rgba.byteOffset, rgba.byteLength), { width, height }), metaSrc: await raw.onDisk(item, buf) };
   }
   if (NATIVE_DECODE.has(item.ext)) {
     const img = nativeImage.createFromBuffer(buf);
     if (img.isEmpty()) throw new Error('unreadable image');
-    return img;
+    return { img, metaSrc: item.abs };
   }
   throw new Error(`can't read ${item.ext} yet`);
 }
@@ -77,7 +110,7 @@ async function run(sources, action, ctx) {
     const tag = action.id === 'shrink' ? 'email size' : target.toUpperCase();
     for (const src of sources) {
       const outRoot = outDirFor(src, tag); ctx.dirs.add(outRoot);
-      const work = src.items.filter((it) => it.kind === 'heic' || (it.kind === 'raster' && NATIVE_DECODE.has(it.ext)));
+      const work = src.items.filter(isPhoto);
       // Zips: extract the non-image files too, so the result is a complete, usable folder.
       if (src.type === 'zip') {
         for (const it of src.items.filter((x) => !work.includes(x))) {
@@ -86,23 +119,24 @@ async function run(sources, action, ctx) {
         }
       }
       await each(work, lanes, ctx, async (it, n) => {
-        let img = await toImage(it);
+        const decoded = await toImage(it); let { img } = decoded;
         if (action.id === 'shrink') img = fit(img, 2048);
         const relOut = it.rel.slice(0, it.rel.length - it.ext.length) + (action.id === 'shrink' && src.type === 'file' ? ' (email)' : '') + ext;
         const dest = uniquePath(path.join(outRoot, src.type === 'file' ? path.basename(relOut) : relOut));
         await fsp.mkdir(path.dirname(dest), { recursive: true });
         const bytes = target === 'png' ? img.toPNG() : img.toJPEG(action.id === 'shrink' ? 82 : quality);
         await fsp.writeFile(dest, bytes);
+        if (decoded.metaSrc && decoded.metaSrc !== dest) await raw.copyMeta(decoded.metaSrc, dest, { stripGps: action.id === 'shrink' });
         const { width, height } = img.getSize();
-        ctx.outputs.push({ path: dest, name: path.basename(dest), width, height, bytes: bytes.length, order: it.rel, thumb: await writeThumb(img, jobId, ++thumbSeq) });
+        ctx.outputs.push({ path: dest, name: path.basename(dest), width, height, bytes: fs.statSync(dest).size, order: it.rel, source: it.abs || decoded.metaSrc, how: decoded.how, thumb: await writeThumb(img, jobId, ++thumbSeq) });
       });
     }
   } else if (action.id === 'pdf') {
     const pdf = await PDFDocument.create();
-    const items = sources.flatMap((s) => s.items).filter((it) => it.kind === 'heic' || (it.kind === 'raster' && NATIVE_DECODE.has(it.ext)))
+    const items = sources.flatMap((s) => s.items).filter(isPhoto)
       .sort((a, b) => a.rel.localeCompare(b.rel, undefined, { numeric: true }));
     const pages = new Array(items.length);
-    await each(items, lanes, ctx, async (it, n) => { pages[n] = fit(await toImage(it), 2400).toJPEG(85); });
+    await each(items, lanes, ctx, async (it, n) => { pages[n] = fit((await toImage(it)).img, 2400).toJPEG(85); });
     for (const jpg of pages.filter(Boolean)) {
       const im = await pdf.embedJpg(jpg); const s = Math.min(1, 842 / Math.max(im.width, im.height));
       pdf.addPage([im.width * s, im.height * s]).drawImage(im, { x: 0, y: 0, width: im.width * s, height: im.height * s });
@@ -112,6 +146,30 @@ async function run(sources, action, ctx) {
     const dest = uniquePath(path.join(path.dirname(first.path), `${base}.pdf`));
     const bytes = await pdf.save(); await fsp.writeFile(dest, bytes);
     ctx.outputs.push({ path: dest, name: path.basename(dest), bytes: bytes.length, kind: 'pdf' });
+  } else if (action.id === 'zip') {
+    const yazl = require('yazl');
+    const STORED = /\.(jpe?g|png|gif|webp|heic|heif|avif|mp4|mov|m4v|mp3|m4a|zip|7z|rar|gz|docx|xlsx|pptx|pdf|cr2|cr3|nef|nrw|arw|raf|orf|rw2|dng|pef|srw|rwl|3fr|iiq|x3f)$/i;
+    const entries = []; const used = new Set();
+    for (const src of sources) {
+      if (src.type === 'zip') entries.push({ abs: src.path, rel: path.basename(src.path), size: src.size });
+      else if (src.type === 'folder') src.items.forEach((it) => entries.push({ abs: it.abs, rel: `${path.basename(src.path)}/${it.rel}`, size: it.size }));
+      else entries.push({ abs: src.path, rel: path.basename(src.path), size: src.size });
+    }
+    for (const e of entries) { let r = e.rel; const p = path.posix.parse(r); for (let i = 2; used.has(r.toLowerCase()); i++) r = `${p.dir ? p.dir + '/' : ''}${p.name} (${i})${p.ext}`; used.add(r.toLowerCase()); e.rel = r; }
+    const first = sources[0];
+    const home = first.type === 'folder' && sources.length === 1 ? path.dirname(first.path) : path.dirname(first.path);
+    const base = first.type === 'folder' && sources.length === 1 ? path.basename(first.path) : (path.basename(home) || 'Files');
+    const dest = uniquePath(path.join(home, `${base}.zip`));
+    const z = new yazl.ZipFile(); const out = fs.createWriteStream(dest);
+    const total = entries.reduce((a, e) => a + (e.size || 0), 0) || 1;
+    const marks = []; let acc = 0; for (const e of entries) { acc += e.size || 0; marks.push(acc); }
+    let written = 0; let shown = 0;
+    z.outputStream.on('data', (c) => { written += c.length; while (shown < entries.length && written >= marks[shown] * 0.98) { shown++; ctx.progress(shown, entries.length, entries[shown - 1].rel); } });
+    const finished = new Promise((res, rej) => { out.on('close', res); out.on('error', rej); z.outputStream.on('error', rej); });
+    z.outputStream.pipe(out);
+    for (const e of entries) z.addFile(e.abs, e.rel, { compress: !STORED.test(e.rel) });
+    z.end(); await finished; ctx.progress(entries.length, entries.length, '');
+    if (ctx.cancelled) { fs.rmSync(dest, { force: true }); } else ctx.outputs.push({ path: dest, name: path.basename(dest), bytes: fs.statSync(dest).size, kind: 'zip', note: `${entries.length} files · ${Math.round(total / 1e6)} MB before zipping` });
   } else if (action.id === 'unzip') {
     for (const src of sources.filter((s) => s.type === 'zip')) {
       const outRoot = outDirFor(src, 'unzipped'); ctx.dirs.add(outRoot);

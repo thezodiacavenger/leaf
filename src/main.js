@@ -4,7 +4,9 @@ const path = require('node:path');
 const fs = require('node:fs');
 const os = require('node:os');
 const { pathToFileURL } = require('node:url');
-const { inspect } = require('./engine/sources');
+const { inspect, isPhoto } = require('./engine/sources');
+const raw = require('./engine/raw');
+const darkroom = require('./engine/darkroom');
 const { propose, mb } = require('./engine/plan');
 const engine = require('./engine/run');
 const office = require('./engine/office');
@@ -14,7 +16,7 @@ if (!app.requestSingleInstanceLock()) { app.quit(); process.exit(0); }
 const logError = (err) => { try { fs.appendFileSync(path.join(app.getPath('userData'), 'leaf.log'), `${new Date().toISOString()} ${err && err.stack || err}\n`); } catch {} };
 process.on('uncaughtException', logError);
 process.on('unhandledRejection', logError);
-protocol.registerSchemesAsPrivileged([{ scheme: 'leaf', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } }]);
+protocol.registerSchemesAsPrivileged([{ scheme: 'leaf', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, corsEnabled: true } }]);
 
 const UI = path.join(__dirname, 'ui');
 const LEAF = 112; const PANEL_W = 380; const MARGIN = 16;
@@ -31,6 +33,8 @@ let leafWin; let panelWin; let galleryWin; let tray;
 const alive = (w) => !!w && !w.isDestroyed(); // a closed window throws on any call
 let sources = null; let ctx = null;
 const allowed = new Set(); // files the gallery may read through leaf://
+const sourceOf = new Map(); // converted file -> original photo (for Photo info)
+let exifFiles = [];        // photos the Photo info view can page through
 let state = { phase: 'idle', recent: [] };
 
 function broadcast() {
@@ -112,13 +116,17 @@ async function handleDrop(paths, { auto = false } = {}) {
 async function act(index) {
   const action = state.proposal?.actions?.[index];
   if (!action || action.disabled || !sources) return;
+  if (action.id === 'exif') {
+    exifFiles = sources.flatMap((s) => s.items).filter(isPhoto).map((it) => ({ name: it.name, get: () => raw.onDisk(it) }));
+    return showExif(0, true);
+  }
   ctx = { settings, cancelled: false, progress: throttle((done, total, name) => setState({ progress: { done, total, name } }), 60) };
   setState({ phase: 'working', action: action.label, progress: { done: 0, total: 0 } });
   try {
     const result = await engine.run(sources, action, ctx);
     sources = null;
     result.outputs.forEach((o) => allowed.add(o.path));
-    result.outputs.forEach((o) => o.thumb && allowed.add(o.thumb));
+    result.outputs.forEach((o) => { if (o.thumb) allowed.add(o.thumb); if (o.source) sourceOf.set(o.path, o.source); });
     result.title = result.dirs[0] ? path.basename(result.dirs[0]) : result.outputs[0] ? path.basename(path.dirname(result.outputs[0].path)) : '';
     result.size = mb(result.outputs.reduce((a, o) => a + (o.bytes || 0), 0));
     result.images = result.outputs.filter((o) => o.thumb).length;
@@ -129,6 +137,20 @@ async function act(index) {
     setState({ phase: 'error', error: e.message });
   }
 }
+
+// ---------- Photo info ----------
+async function showExif(index, back = state.exif?.back) {
+  const f = exifFiles[index]; if (!f) return;
+  const base = { index, count: exifFiles.length, name: f.name, back };
+  setState({ phase: 'exif', exif: { ...base, loading: true } });
+  try {
+    const info = await raw.photoInfo(await f.get());
+    if (state.phase === 'exif' && state.exif.index === index) setState({ exif: { ...base, info } });
+  } catch (e) {
+    if (state.phase === 'exif' && state.exif.index === index) setState({ exif: { ...base, error: `Couldn't read this photo's info (${e.message})` } });
+  }
+}
+const exifText = (info) => [info.camera, info.hero.join('  '), ...info.rows.map(([k, v]) => `${k}: ${v}`)].join('\n');
 
 function throttle(fn, ms) {
   let last = 0; let t;
@@ -168,6 +190,20 @@ ipcMain.on('panel:height', (_e, h) => placePanel(Math.min(640, Math.max(120, h))
 ipcMain.on('panel:act', (_e, i) => act(i));
 ipcMain.on('panel:cancel', () => { if (state.phase === 'working' && ctx) ctx.cancelled = true; else { sources = null; setState({ phase: 'idle' }); hidePanel(); } });
 ipcMain.on('panel:hide', hidePanel);
+ipcMain.on('panel:exif-step', (_e, d) => { const n = exifFiles.length; if (n) showExif((state.exif.index + d + n) % n); });
+ipcMain.on('panel:exif-back', () => setState({ phase: sources ? 'proposal' : 'idle', exif: null }));
+ipcMain.on('panel:exif-copy', () => state.exif?.info && clipboard.writeText(exifText(state.exif.info)));
+ipcMain.on('panel:exif-map', () => { const g = state.exif?.info?.gps; if (g) shell.openExternal(`https://www.openstreetmap.org/?mlat=${g.lat}&mlon=${g.lon}#map=15/${g.lat}/${g.lon}`); });
+ipcMain.on('panel:exif-all', async () => {
+  const f = exifFiles[state.exif?.index]; if (!f) return;
+  try { const all = await raw.allTags(await f.get()); setState({ exif: { ...state.exif, all } }); } catch {}
+});
+ipcMain.handle('gallery:info', async (_e, out) => {
+  if (!allowed.has(out)) return null;
+  const src = sourceOf.get(out); const file = src && fs.existsSync(src) ? src : out;
+  try { return await raw.photoInfo(file); } catch { return null; }
+});
+ipcMain.on('gallery:map', (_e, g) => { if (g && Number.isFinite(g.lat) && Number.isFinite(g.lon)) shell.openExternal(`https://www.openstreetmap.org/?mlat=${g.lat}&mlon=${g.lon}#map=15/${g.lat}/${g.lon}`); });
 ipcMain.on('panel:gallery', (_e, i) => openGallery(i == null ? state.result : state.recent[i]?.result));
 ipcMain.on('panel:folder', () => { const r = state.result; if (r?.dirs[0]) shell.openPath(r.dirs[0]); else if (r?.outputs[0]) shell.showItemInFolder(r.outputs[0].path); });
 ipcMain.on('panel:open', (_e, p) => allowed.has(p) && shell.openPath(p));
@@ -210,8 +246,21 @@ app.on('second-instance', (_e, argv) => { const p = argPaths(argv); if (p.length
 
 app.whenReady().then(() => {
   if (process.platform === 'win32') app.setAppUserModelId('ca.vistek.leaf');
-  protocol.handle('leaf', (req) => {
-    const p = decodeURIComponent(new URL(req.url).pathname.slice(1));
+  fs.rmSync(path.join(os.tmpdir(), 'leaf-src'), { recursive: true, force: true }); // temp copies from last session
+  const APP_ROOT = path.join(__dirname, '..');
+  const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.wasm': 'application/wasm', '.css': 'text/css' };
+  protocol.handle('leaf', async (req) => {
+    const u = new URL(req.url);
+    if (u.host === 'app') {
+      // App files served cross-origin-isolated, so the darkroom's WebAssembly threads can share memory.
+      const file = path.normalize(path.join(APP_ROOT, decodeURIComponent(u.pathname)));
+      if (!file.startsWith(APP_ROOT + path.sep)) return new Response('', { status: 404 });
+      const r = await net.fetch(pathToFileURL(file).toString()).catch(() => null);
+      if (!r || !r.ok) return new Response('', { status: 404 });
+      return new Response(r.body, { headers: { 'Content-Type': TYPES[path.extname(file)] || 'application/octet-stream',
+        'Cross-Origin-Opener-Policy': 'same-origin', 'Cross-Origin-Embedder-Policy': 'require-corp', 'Cross-Origin-Resource-Policy': 'same-origin' } });
+    }
+    const p = decodeURIComponent(u.pathname.slice(1));
     return allowed.has(p) ? net.fetch(pathToFileURL(p).toString()) : new Response('', { status: 404 });
   });
   createLeaf(); createPanel();
@@ -225,4 +274,4 @@ app.whenReady().then(() => {
 });
 ipcMain.on('ready', broadcast);
 app.on('window-all-closed', (e) => e.preventDefault());
-app.on('before-quit', () => engine.shutdown());
+app.on('before-quit', () => { engine.shutdown(); darkroom.close(); raw.endExiftool(); });

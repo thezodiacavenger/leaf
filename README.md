@@ -32,10 +32,17 @@ drop ─▶ Leaf reads it (no extraction) ─▶ one suggestion + ≤3 alternati
 ### What it does today (v0.1)
 | You drop | Leaf suggests | Alternatives |
 |---|---|---|
-| Zip / folder / files of **HEIC** photos | **Convert to JPEG** | PNG · One PDF · Just unzip |
-| JPG / PNG / BMP images | **Shrink for email** | Convert format · One PDF |
+| **RAW** photos: Canon CR2/CR3, Nikon NEF, Sony ARW, Fujifilm RAF, OM System/Olympus ORF, Panasonic Lumix RW2, DNG (Leica, Pentax, phones), Pentax PEF, Hasselblad, Phase One, Sigma, Samsung | **Convert to JPEG**: full resolution, camera colours, camera/lens/date kept | PNG · Photo info · Make a zip |
+| Zip / folder / files of **HEIC** photos | **Convert to JPEG** | PNG · One PDF · Just unzip / Make a zip |
+| TIFF | **Convert to JPEG** | Shrink for email · PDF · Photo info |
+| JPG / PNG / BMP images | **Shrink for email** (location removed) | Convert format · One PDF · Photo info · Make a zip |
 | Any other zip | **Unzip** | — |
-| Word document (.docx/.doc/.rtf/.odt) *(preview)* | **Save as PDF** (via Word) | Write as email (Outlook, formatting kept) · Email as PDF |
+| Word document (.docx/.doc/.rtf/.odt) | **Save as PDF** (via Word) | Write as email (Outlook, formatting kept) · Email as PDF · Make a zip |
+| Anything else (several files or a folder) | **Make a zip** | — |
+
+**Photo info** shows camera, lens, focal length, aperture, shutter, ISO, date taken, size, exposure mode, metering, white balance, flash, focus, shutter count (where the camera records it), serial, firmware, location (with a map link), artist and copyright. **All tags** opens a searchable list of every tag (often 500+). Use ← → to page through a batch. In the full-screen preview, press **I** for the same info beside the photo.
+
+**How RAW conversion works:** every RAW file contains the camera's own JPEG. When that JPEG is full size (many Canons), Leaf uses it directly, which is instant. When it's smaller (Sony, Pentax, Panasonic, Nikon, Olympus, Fuji), Leaf develops the RAW at full sensor resolution with LibRaw, then matches its tones and colours to the camera's JPEG so the result still looks like the camera's rendering. Conversions also copy the original metadata (camera, lens, date, GPS) into the JPEG.
 
 After the conversion: **Preview** (glass gallery), **Folder** and **Email** (opens classic Outlook with attachments; otherwise shows the files so you can drag them into any mail app).
 
@@ -59,6 +66,7 @@ System integration: tray menu, **Start with Windows**, **right-click → Send to
 
 **Later**
 - Video (MOV → MP4), audio, and live-photo pairs.
+- RAW: lens-profile corrections and a "neutral / camera look" choice.
 - Business drops: drop an ERP inventory export (CSV/XLSX) and get "Summarise aged stock by days on hand". This is a natural fit for the impairment work.
 
 ---
@@ -71,7 +79,11 @@ System integration: tray menu, **Start with Windows**, **right-click → Send to
 |---|---|---|
 | HEIC decode | `heic-decode` (libheif in WebAssembly) in a **worker-thread pool** (cores − 1) | Decoding is the slow part; workers keep the UI smooth. |
 | JPEG/PNG encode, resize, thumbnails | Electron's built-in `nativeImage` (Chromium's encoder) | Native speed with zero dependencies. |
-| Zip | `yauzl`, reading entries lazily into memory | No temporary HEIC files; handles large zips; blocks zip-slip paths. |
+| Zip | `yauzl` to read (lazily, in memory); `yazl` to write (already-compressed formats stored, not recompressed) | Fast; handles large zips; blocks zip-slip paths. |
+| RAW develop | LibRaw (`libraw-wasm`, multithreaded WebAssembly) in a hidden, cross-origin-isolated "darkroom" window; at most 2 at once; closes after 60 s idle | Full resolution for every brand, CR3 included. |
+| RAW camera look | Per-channel histogram match against the camera's embedded JPEG | Camera-maker colours at full resolution, with no per-brand tuning. |
+| Metadata | ExifTool (bundled `exiftool.exe`) via `exiftool-vendored` 35.x (the last line compatible with Electron 33's Node 20) | Reads and writes every brand; copies metadata into converted files. |
+| TIFF | `utif` (pure JS) | |
 | PDF | `pdf-lib` (pure JS) | |
 | Word → PDF / Outlook | PowerShell + COM into the user's own Office | Uses real Office, so layout is exactly right. |
 | Previews | Custom `leaf://` protocol with an allow-list | The gallery can read only files Leaf itself produced. |
@@ -100,13 +112,16 @@ Adding a format means adding a case in `plan.js` (what to suggest) and in `run.j
 ```bash
 npm install
 npm start                # dev run
-npm run dist             # → dist/Leaf-0.1.2-portable.exe
+npm run dist             # → dist/Leaf-0.2.0-portable.exe
 ```
 Command line: `Leaf.exe "C:\path\photos.zip"` opens the suggestion panel. Add `--auto` to run the main suggestion straight away.
 
 ### Verified vs. not yet verified
 - ✅ Zip of HEIC photos → JPEG/PNG/PDF/unzip, folder flattening, macOS junk skipped, other files kept. Tested end to end, including the packaged build.
 - ✅ Gallery keyboard navigation, selection, full screen.
-- ⚠️ **Not yet run on real Windows:** acrylic glass, Send To, Word → PDF, Word → Outlook and Outlook attachments. These were written against documented Windows/Office APIs but built on Linux. Test them first. If the glass looks wrong, untick **Glass: use Windows acrylic** in the tray menu.
+- ✅ RAW → JPEG for 8 real camera files (Canon 5D IV CR2, Canon R6 CR3, Fuji X-T3 RAF, Lumix G9 RW2, Nikon Z6 NEF, Olympus E-M1 III ORF, Pentax K-1 DNG, Sony A7 III ARW): all full resolution, about 20 s for all 8, metadata verified in the outputs. Also tested in the packaged build.
+- ✅ Photo info, All tags, zip, TIFF.
+- ✅ Word → PDF confirmed on Windows by the user.
+- ⚠️ **Not yet run on real Windows:** acrylic glass, Send To, Word → Outlook and Outlook attachments, and the bundled `exiftool.exe` (its Linux twin is tested). These were written against documented Windows/Office APIs but built on Linux. Test them first. If the glass looks wrong, untick **Glass: use Windows acrylic** in the tray menu.
 - ⚠️ The exe is unsigned, so SmartScreen will warn on first run (More info → Run anyway). For a company-wide rollout, sign it with a code-signing certificate.
-- ⚠️ Photo metadata (EXIF date/GPS) is not carried over to the JPEGs yet.
+- ⚠️ Fujifilm X-Trans RAWs use a faster one-pass develop (a full-quality pass took about 20 s per file). Developed RAWs don't apply lens corrections yet.
