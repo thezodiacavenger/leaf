@@ -97,8 +97,9 @@ const TMP = path.join(os.tmpdir(), 'leaf-src'); let tmpSeq = 0;
 async function onDisk(item, buf) {
   if (item.abs) return item.abs;
   if (item._tmp) return item._tmp;
-  await fsp.mkdir(TMP, { recursive: true });
-  item._tmp = path.join(TMP, `${Date.now().toString(36)}-${++tmpSeq}${item.ext}`);
+  // Own folder per item so the copy keeps its real name (shown in Photo info).
+  const dir = path.join(TMP, `${Date.now().toString(36)}-${++tmpSeq}`); await fsp.mkdir(dir, { recursive: true });
+  item._tmp = path.join(dir, item.name.replace(/[\\/:*?"<>|]/g, '_'));
   await fsp.writeFile(item._tmp, buf || await item.read());
   return item._tmp;
 }

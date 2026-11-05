@@ -1,6 +1,6 @@
 {
   "name": "leaf",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Drop anything. Leaf converts it.",
   "main": "src/main.js",
   "scripts": {
@@ -37,7 +37,20 @@
     },
     "files": [
       "src/**/*",
-      "package.json"
+      "package.json",
+      "!**/*.{map,d.ts,d.mts,md,markdown,ts}",
+      "!**/{README,CHANGELOG,HISTORY,AUTHORS}*",
+      "!**/{test,tests,__tests__,docs,example,examples}/**",
+      "!node_modules/pdfjs-dist/**",
+      "node_modules/pdfjs-dist/package.json",
+      "node_modules/pdfjs-dist/legacy/build/pdf.min.mjs",
+      "node_modules/pdfjs-dist/legacy/build/pdf.worker.min.mjs",
+      "!node_modules/@cantoo/pdf-lib/{es,dist,src,ts3.4}/**",
+      "!node_modules/libheif-js/libheif/**",
+      "!node_modules/libheif-js/libheif-wasm/{libheif.js,libheif.wasm,libheif-bundle.mjs}",
+      "!node_modules/libraw-wasm/dist/*.map",
+      "!node_modules/@napi-rs/**",
+      "!**/exiftool-vendored.pl/**"
     ],
     "win": {
       "icon": "build/icon.png",
@@ -60,6 +73,11 @@
       "node_modules/libheif-js/**",
       "**/exiftool-vendored.exe/**",
       "**/exiftool-vendored.pl/**"
-    ]
+    ],
+    "electronLanguages": [
+      "en-US",
+      "fr"
+    ],
+    "afterPack": "build/after-pack.js"
   }
 }

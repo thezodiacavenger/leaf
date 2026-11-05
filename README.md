@@ -2,126 +2,122 @@
 
 **Drop anything on the leaf. It works out what you want.**
 
-Leaf is a small glass leaf that sits in the corner of the Windows desktop. Drag a zip, folder, photo or document onto it. Leaf looks inside, suggests the one thing you most likely want, and does it with a single key press. Originals are never changed.
+Leaf is a small glass leaf that sits in the corner of the Windows desktop. Drag a zip, folder, email, PDF, Office file, photo or RAW file onto it. Leaf looks inside, suggests the one thing you most likely want, and does it with a single key press. Originals are never changed, and nothing leaves your PC.
 
 | Suggest | Done | Gallery | Full screen |
 |---|---|---|---|
 | ![](docs/1-suggest.png) | ![](docs/2-done.png) | ![](docs/3-gallery.png) | ![](docs/4-fullscreen.png) |
 
+**Download:** [`download/Leaf-0.3.0-portable.exe`](download/Leaf-0.3.0-portable.exe), portable with nothing to install. Windows 10 or 11, 64-bit.
+
 ---
 
-## The product
+## What it handles
 
-### Who it's for
-People who get handed files in the wrong shape: iPhone photos in HEIC, zips from vendors, Word documents that should be PDFs or emails. Today they hunt for an online converter, which is slow and sends files to a stranger's server. Leaf does it locally, in about two seconds, from the corner of the screen.
+★ = what Leaf suggests first. Everything else is one key away (2–5), or under **More** (M).
 
-### Design principles (UX)
-1. **One obvious answer.** Leaf never asks a question it can answer itself. A zip of HEIC photos doesn't get "Unzip?" followed by "Convert?". Leaf reads the zip's table of contents without extracting it and offers one combined step: **Convert to JPEG**. Alternatives sit beside it, quieter, at most three.
-2. **Low stimulation.** No sounds, no talking mascot, no pop-ups it wasn't asked for. The leaf sits at 86% opacity until you need it. Motion appears only to mean something: the leaf swells when you drag over it, shows a progress ring while it works, and nudges once when work finishes in the background.
-3. **Keyboard first, mouse friendly.** Enter does the main action, 2–9 pick an alternative and Esc dismisses. In the gallery, use the arrows or Tab to move, Space for full screen, X to select and Ctrl+C to copy.
-4. **Safe by construction.** Output always goes to a new folder (`Trip (JPEG)`) or sits next to the original. Nothing is overwritten or deleted. Mac junk files (`__MACOSX`, `._*`, `.DS_Store`) are ignored silently.
-5. **Smart about size.** Emailing more than 20 MB of photos sends email-size copies automatically (2048 px, about 5× smaller). The full-size files stay on disk.
-
-### The flow
-```
-drop ─▶ Leaf reads it (no extraction) ─▶ one suggestion + ≤3 alternatives
-     ─▶ Enter ─▶ progress ring on the leaf ─▶ "48 JPEGs ready"
-     ─▶ Space ─▶ glass gallery ─▶ Space ─▶ full screen ─▶ ← → ─▶ Email / PDF / Copy
-```
-
-### What it does today (v0.1)
-| You drop | Leaf suggests | Alternatives |
+### Email & documents
+| You drop | ★ Leaf suggests | Also |
 |---|---|---|
-| **RAW** photos: Canon CR2/CR3, Nikon NEF, Sony ARW, Fujifilm RAF, OM System/Olympus ORF, Panasonic Lumix RW2, DNG (Leica, Pentax, phones), Pentax PEF, Hasselblad, Phase One, Sigma, Samsung | **Convert to JPEG**: full resolution, camera colours, camera/lens/date kept | PNG · Photo info · Make a zip |
-| Zip / folder / files of **HEIC** photos | **Convert to JPEG** | PNG · One PDF · Just unzip / Make a zip |
-| TIFF | **Convert to JPEG** | Shrink for email · PDF · Photo info |
-| JPG / PNG / BMP images | **Shrink for email** (location removed) | Convert format · One PDF · Photo info · Make a zip |
-| Any other zip | **Unzip** | — |
-| Word document (.docx/.doc/.rtf/.odt) | **Save as PDF** (via Word) | Write as email (Outlook, formatting kept) · Email as PDF · Make a zip |
-| Anything else (several files or a folder) | **Make a zip** | — |
+| **Outlook email** (.msg) or .eml | **Save as PDF**: header, body, then each attachment as pages (PDF, photos and Office files converted) | Extract attachments |
+| **Several emails** | **One PDF of all emails**: oldest first, attachments included, a bookmark per email | Save each as PDF · Extract attachments · Make a zip |
+| **winmail.dat** | **Extract attachments** (the real files Outlook packed) | |
+| **A mix** (PDFs, emails, Word/Excel/PowerPoint, photos) | **Combine into one PDF**: name order, fillable forms flattened, a bookmark per file. Built for submission packages | Make a zip |
+| **A PDF** | Adapts to the file: locked → **Remove password**; scanned → **Make searchable**; fillable form → **Flatten**; otherwise → **Compress for email** (under 9 MB, text stays sharp) | Protect with password (AES-256) · Extract pages… · Split into pages · Rotate · Make editable (Word) · Remove hidden data |
+| **Excel workbook** | **Save as PDF, fitted to page width** | Each sheet to CSV · Email as PDF · Remove hidden data |
+| **CSV** | **Open safely as Excel**: leading zeros, long IDs and dates kept exactly as written | Clean up CSV |
+| **Word / PowerPoint** | **Save as PDF** | Write as email (Outlook, formatting kept) · Email as PDF · Remove hidden data |
+| **Multi-page TIFF / fax** | **Make PDF** at the correct page size | Make searchable PDF |
 
-**Photo info** shows camera, lens, focal length, aperture, shutter, ISO, date taken, size, exposure mode, metering, white balance, flash, focus, shutter count (where the camera records it), serial, firmware, location (with a map link), artist and copyright. **All tags** opens a searchable list of every tag (often 500+). Use ← → to page through a batch. In the full-screen preview, press **I** for the same info beside the photo.
+### Photos
+| You drop | ★ Leaf suggests | Also |
+|---|---|---|
+| **RAW**: Canon CR2/CR3, Nikon NEF, Sony ARW, Fujifilm RAF, OM System/Olympus ORF, Panasonic Lumix RW2, DNG, Pentax PEF and more | **Convert to JPEG** at full resolution in the camera's colours, keeping camera, lens and date | PNG · Photo info · Make a zip · Photo report PDF |
+| **HEIC** (iPhone), zipped or not | **Convert to JPEG** | PNG · Photo report PDF · One PDF · Photo info |
+| **JPG / PNG / TIFF** | **Shrink for email** (2048 px, location removed) | Photo report PDF · Convert · One PDF · Photo info · Make searchable PDF · Remove hidden data |
+| **Photos + a form** (e.g. a claim) | Photo actions first | Combine into one PDF |
 
-**How RAW conversion works:** every RAW file contains the camera's own JPEG. When that JPEG is full size (many Canons), Leaf uses it directly, which is instant. When it's smaller (Sony, Pentax, Panasonic, Nikon, Olympus, Fuji), Leaf develops the RAW at full sensor resolution with LibRaw, then matches its tones and colours to the camera's JPEG so the result still looks like the camera's rendering. Conversions also copy the original metadata (camera, lens, date, GPS) into the JPEG.
+- **Photo report PDF:** two photos per page, sorted by date taken, each captioned with file name, date, camera, lens and GPS. Built for claims, damage reports, RMAs and site visits.
+- **Photo info:** camera, lens, exposure, date taken, shutter count, serial, location with a map link, and a searchable list of every tag. In full-screen preview, press **I**.
 
-After the conversion: **Preview** (glass gallery), **Folder** and **Email** (opens classic Outlook with attachments; otherwise shows the files so you can drag them into any mail app).
+### Leaf Pile (optional)
+On first run Leaf offers to add a **Leaf Pile** folder to your desktop, with an aurora folder icon. Anything you save or drop into it (an Outlook attachment, scanner output, a download) brings up Leaf's suggestion once the file has finished writing. Turn it on or off from the tray menu; Leaf never deletes what's in it.
 
-System integration: tray menu, **Start with Windows**, **right-click → Send to → Leaf**, and the leaf can be dragged anywhere on screen (its position is remembered). It follows the light/dark theme and uses Windows 11 acrylic glass, falling back to drawn glass on Windows 10.
+---
 
-### Roadmap
-**v0.2: Office and mail (your "Version 2")**
-- Word, Excel and PowerPoint → PDF in one step, plus "Combine into one PDF" for a mix of documents.
-- Word → email body with formatting kept (done in preview for classic Outlook). Add a new-Outlook / Microsoft Graph route so it works without classic Outlook.
-- PDF → images, PDF merge/split, rotate/reorder pages in the gallery.
+## Design principles
+1. **One obvious answer.** Leaf never asks a question it can answer itself. It reads a zip's contents or a PDF's structure first, then suggests one action.
+2. **Low stimulation.** No sounds, no mascot chatter. Motion appears only to mean something: the leaf swells on drag, shows a progress ring, and nudges once when work finishes in the background.
+3. **Keyboard first.** Enter, 2–5, M for More, Esc. In the gallery, use the arrows, Space, I, X and Ctrl+C.
+4. **Safe by construction.** New files go next to the original or into a new folder. Nothing is overwritten. Emails render with scripts and network blocked, so tracking pixels never fire.
+5. **Local only.** No cloud services. Office conversions use your own Word, Excel and PowerPoint. Text recognition uses Windows' built-in, offline engine.
 
-**v0.3: Connectors** (each one is a new destination on the gallery's side rail)
-- OneDrive / SharePoint: "Save to team folder" with a remembered default.
-- Teams: send to a chat or channel.
-- Gmail / Google Drive for people who don't use Microsoft 365.
+---
 
-**v0.4: Learns your habits**
-- If you pick the same alternative three times for a file type, it becomes the default.
-- One-step Send To shortcuts ("Leaf: convert to JPEG") using the existing `--auto` flag.
-- Optional rules, for example "HEIC from the Downloads folder → JPEG automatically".
+## Compatibility
+| | Windows 10 (64-bit) | Windows 11 21H2 | Windows 11 22H2+ |
+|---|---|---|---|
+| Runs | ✅ | ✅ | ✅ |
+| Glass | Drawn glass | Drawn glass | Real acrylic (untick in tray if it misbehaves) |
+| Text recognition | ✅ (1809+, needs an OCR language) | ✅ | ✅ |
+| Office features | Classic Office (Word/Excel/PowerPoint) | same | same |
+| "Write as email" / Outlook | Classic Outlook only; the new Outlook has no automation API, so Leaf falls back to showing the files | same | same |
 
-**Later**
-- Video (MOV → MP4), audio, and live-photo pairs.
-- RAW: lens-profile corrections and a "neutral / camera look" choice.
-- Business drops: drop an ERP inventory export (CSV/XLSX) and get "Summarise aged stock by days on hand". This is a natural fit for the impairment work.
+Leaf runs on Electron 44 (security-supported, officially Windows 10 and up). On locked-down PCs where PowerShell is restricted (Constrained Language Mode), the Office and text-recognition features report a clear error. Everything else still works.
 
 ---
 
 ## Engineering
 
-**Stack:** Electron 33. No native modules, so it cross-builds cleanly and has no compiler or DLL problems on locked-down PCs.
-
 | Concern | Choice | Why |
 |---|---|---|
-| HEIC decode | `heic-decode` (libheif in WebAssembly) in a **worker-thread pool** (cores − 1) | Decoding is the slow part; workers keep the UI smooth. |
-| JPEG/PNG encode, resize, thumbnails | Electron's built-in `nativeImage` (Chromium's encoder) | Native speed with zero dependencies. |
-| Zip | `yauzl` to read (lazily, in memory); `yazl` to write (already-compressed formats stored, not recompressed) | Fast; handles large zips; blocks zip-slip paths. |
-| RAW develop | LibRaw (`libraw-wasm`, multithreaded WebAssembly) in a hidden, cross-origin-isolated "darkroom" window; at most 2 at once; closes after 60 s idle | Full resolution for every brand, CR3 included. |
-| RAW camera look | Per-channel histogram match against the camera's embedded JPEG | Camera-maker colours at full resolution, with no per-brand tuning. |
-| Metadata | ExifTool (bundled `exiftool.exe`) via `exiftool-vendored` 35.x (the last line compatible with Electron 33's Node 20) | Reads and writes every brand; copies metadata into converted files. |
-| TIFF | `utif` (pure JS) | |
-| PDF | `pdf-lib` (pure JS) | |
-| Word → PDF / Outlook | PowerShell + COM into the user's own Office | Uses real Office, so layout is exactly right. |
-| Previews | Custom `leaf://` protocol with an allow-list | The gallery can read only files Leaf itself produced. |
+| Runtime | Electron 44 | Supported release; Windows 10/11 |
+| HEIC | `heic-decode` (libheif WebAssembly) in a worker-thread pool | Fast, no native code |
+| RAW | Camera's embedded JPEG when full size, else LibRaw (`libraw-wasm`) in a hidden cross-origin-isolated "darkroom" window, tone-matched to the camera JPEG | Full resolution, camera colours, every brand |
+| Metadata | ExifTool (bundled `exiftool.exe`) via `exiftool-vendored` | Reads and writes every brand; keeps date/camera/lens on converted files |
+| Email | `@kenjiuno/msgreader` (+ RTF decompression), `postal-mime` (.eml), own TNEF parser (winmail.dat) | Pure JavaScript, no Outlook needed |
+| Email → PDF | Hidden window: no JavaScript, no network, Chromium `printToPDF` | Exact rendering, no tracking |
+| PDF | `@cantoo/pdf-lib` (pdf-lib fork with AES-256 encryption) | Combine, bookmarks, flatten, split, rotate, encrypt/decrypt, image recompression |
+| Scanned PDF → images | `pdf.js` in a hidden window | Only for text recognition |
+| Text recognition | Windows.Media.Ocr via PowerShell/WinRT; invisible text layer over the original page | Offline, free, no extra download |
+| Office | PowerShell + COM, one session per batch | Exact layout; never closes a PowerPoint you had open |
+| CSV → XLSX | Own minimal XLSX writer | Zero dependencies; columns typed safely |
+| Zip | `yauzl` / `yazl` | Streams; blocks zip-slip paths |
 
 ```
 src/
-  main.js            windows, state machine, IPC, tray, Send To
-  preload.js         narrow, channel-checked bridge
+  main.js              windows, state, IPC, tray, Leaf Pile, protocol
   engine/
-    sources.js       drop → flat item list (zip/folder/file), junk filtering
-    plan.js          the "brain": ranks suggestions
-    run.js           executes actions, progress, thumbnails
-    pool.js          HEIC worker pool
-    heic-worker.js
-    office.js        Word/Outlook via PowerShell COM
-  ui/
-    leaf.html        the leaf (drop target, progress ring, drag-to-move)
-    panel.html       suggestion → progress → done
-    gallery.html     glass grid, side rail, full-screen preview
-    base.css         design tokens (light/dark)
+    sources.js         drop → items; file kinds; PDF/TIFF facts
+    plan.js            the "brain": ranks suggestions
+    run.js             photo conversions, zip/unzip, dispatch
+    docs.js            email, combine, PDF toolkit, Office, CSV, report, OCR, fax
+    mail.js render.js  email parsing + locked-down HTML→PDF
+    pdf.js report.js   PDF toolkit; photo report & TIFF
+    ocr.js office.js   Windows OCR; Office via COM
+    raw.js darkroom.js sheet.js pool.js heic-worker.js
+  ui/                  leaf, panel, gallery, darkroom, workroom
 ```
 
-Adding a format means adding a case in `plan.js` (what to suggest) and in `run.js` (how to do it). The UI needs no changes.
-
-### Run / build
+### Build
 ```bash
 npm install
-npm start                # dev run
-npm run dist             # → dist/Leaf-0.2.0-portable.exe
+npm run prebuild   # fetches the Windows ExifTool when building on Linux/macOS
+npm run dist       # → dist/Leaf-0.3.0-portable.exe
 ```
-Command line: `Leaf.exe "C:\path\photos.zip"` opens the suggestion panel. Add `--auto` to run the main suggestion straight away.
 
-### Verified vs. not yet verified
-- ✅ Zip of HEIC photos → JPEG/PNG/PDF/unzip, folder flattening, macOS junk skipped, other files kept. Tested end to end, including the packaged build.
-- ✅ Gallery keyboard navigation, selection, full screen.
-- ✅ RAW → JPEG for 8 real camera files (Canon 5D IV CR2, Canon R6 CR3, Fuji X-T3 RAF, Lumix G9 RW2, Nikon Z6 NEF, Olympus E-M1 III ORF, Pentax K-1 DNG, Sony A7 III ARW): all full resolution, about 20 s for all 8, metadata verified in the outputs. Also tested in the packaged build.
-- ✅ Photo info, All tags, zip, TIFF.
+### Size
+The download is about 99 MB, most of it the Electron runtime. Leaf's own code and libraries are about 12 MB, plus 35 MB for ExifTool. Unused Chromium translations, the WebGPU shader compiler, duplicate library builds and the Linux copy of ExifTool are stripped at build time.
+
+### Tested vs. not yet tested
+- ✅ Tested end to end here (Linux, same Electron): HEIC, RAW (8 brands), Photo info, gallery and full screen, email → PDF (HTML/RTF/plain), multi-email PDF, winmail.dat (13 real samples), combine with bookmarks and flattening, compress (16.9 → 1.8 MB), password protect/unlock, extract/split/rotate, CSV → Excel, clean CSV, photo report, fax TIFF → PDF, the searchable-PDF pipeline (rendering + text layer), Leaf Pile, and the packaged build.
 - ✅ Word → PDF confirmed on Windows by the user.
-- ⚠️ **Not yet run on real Windows:** acrylic glass, Send To, Word → Outlook and Outlook attachments, and the bundled `exiftool.exe` (its Linux twin is tested). These were written against documented Windows/Office APIs but built on Linux. Test them first. If the glass looks wrong, untick **Glass: use Windows acrylic** in the tray menu.
-- ⚠️ The exe is unsigned, so SmartScreen will warn on first run (More info → Run anyway). For a company-wide rollout, sign it with a code-signing certificate.
-- ⚠️ Fujifilm X-Trans RAWs use a faster one-pass develop (a full-quality pass took about 20 s per file). Developed RAWs don't apply lens corrections yet.
+- ⚠️ Written against documented Windows APIs but **not yet run on Windows**: Excel/PowerPoint → PDF, Excel → CSV, PDF → Word, Remove hidden data (Office), Windows text recognition itself, the Leaf Pile folder icon, Send To, Start with Windows, acrylic glass.
+- ⚠️ The `.exe` is unsigned, so SmartScreen warns on first run (More info → Run anyway). Sign it before a company-wide rollout.
+
+### Roadmap
+- **Next:** true redaction: select what to remove, and it is removed from the file, not just covered.
+- Excel/PowerPoint "fit" options, PDF tables → Excel, naming rules.
+- Connectors: OneDrive/SharePoint, Teams.
+- Learns your habits: your usual choice becomes the default.
+- Business drops: inventory export → aged-stock summary.
