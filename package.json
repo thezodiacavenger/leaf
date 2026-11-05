@@ -103,5 +103,8 @@
     "msg",
     "desktop-assistant",
     "privacy"
-  ]
+  ],
+  "engines": {
+    "node": ">=20"
+  }
 }
