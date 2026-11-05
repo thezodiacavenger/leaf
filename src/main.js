@@ -10,6 +10,10 @@ const engine = require('./engine/run');
 const office = require('./engine/office');
 
 if (!app.requestSingleInstanceLock()) { app.quit(); process.exit(0); }
+// Safety net: unexpected errors go to %APPDATA%\Leaf\leaf.log instead of an error dialog.
+const logError = (err) => { try { fs.appendFileSync(path.join(app.getPath('userData'), 'leaf.log'), `${new Date().toISOString()} ${err && err.stack || err}\n`); } catch {} };
+process.on('uncaughtException', logError);
+process.on('unhandledRejection', logError);
 protocol.registerSchemesAsPrivileged([{ scheme: 'leaf', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } }]);
 
 const UI = path.join(__dirname, 'ui');
@@ -24,13 +28,14 @@ const winBuild = process.platform === 'win32' ? Number(os.release().split('.')[2
 const systemGlass = settings.glass !== 'css' && winBuild >= 22000;
 
 let leafWin; let panelWin; let galleryWin; let tray;
+const alive = (w) => !!w && !w.isDestroyed(); // a closed window throws on any call
 let sources = null; let ctx = null;
 const allowed = new Set(); // files the gallery may read through leaf://
 let state = { phase: 'idle', recent: [] };
 
 function broadcast() {
   const s = { ...state, systemGlass };
-  for (const w of [leafWin, panelWin]) if (w && !w.isDestroyed()) w.webContents.send('state', s);
+  for (const w of [leafWin, panelWin]) if (alive(w)) w.webContents.send('state', s);
 }
 function setState(patch) { state = { ...state, ...patch }; broadcast(); }
 
@@ -67,7 +72,7 @@ function createPanel() {
   panelWin = glassWindow({ width: PANEL_W, height: 220, alwaysOnTop: true });
   panelWin.setAlwaysOnTop(true, 'floating');
   panelWin.loadFile(path.join(UI, 'panel.html'), { query: { glass: systemGlass ? 'system' : 'css' } });
-  panelWin.on('blur', () => { if (state.phase !== 'working' && !galleryWin?.isFocused()) hidePanel(); });
+  panelWin.on('blur', () => { if (state.phase !== 'working' && !(alive(galleryWin) && galleryWin.isFocused())) hidePanel(); });
 }
 
 function placePanel(height = panelWin.getBounds().height) {
@@ -82,7 +87,7 @@ function placePanel(height = panelWin.getBounds().height) {
   panelWin.setBounds({ x: Math.round(x), y: Math.round(y), width: PANEL_W, height: Math.round(height) });
 }
 function showPanel() { placePanel(); panelWin.show(); panelWin.focus(); setState({ unseen: false }); }
-function hidePanel() { if (panelWin?.isVisible()) panelWin.hide(); }
+function hidePanel() { if (alive(panelWin) && panelWin.isVisible()) panelWin.hide(); }
 
 // ---------- the flow: drop -> propose -> run -> done ----------
 async function handleDrop(paths, { auto = false } = {}) {
@@ -134,13 +139,14 @@ function throttle(fn, ms) {
 function openGallery(result = state.result) {
   if (!result) return;
   hidePanel();
-  if (!galleryWin || galleryWin.isDestroyed()) {
+  if (!alive(galleryWin)) {
     const wa = screen.getDisplayMatching(leafWin.getBounds()).workArea;
     const w = Math.min(1240, wa.width - 80); const h = Math.min(820, wa.height - 80);
     galleryWin = glassWindow({ width: w, height: h, x: Math.round(wa.x + (wa.width - w) / 2), y: Math.round(wa.y + (wa.height - h) / 2),
       resizable: true, minimizable: true, maximizable: true, fullscreenable: true, skipTaskbar: false, minWidth: 560, minHeight: 420, title: 'Leaf' });
     galleryWin.loadFile(path.join(UI, 'gallery.html'), { query: { glass: systemGlass ? 'system' : 'css' } });
-    galleryWin.once('ready-to-show', () => galleryWin.show());
+    galleryWin.once('ready-to-show', () => alive(galleryWin) && galleryWin.show());
+    galleryWin.on('closed', () => { galleryWin = null; });
   } else galleryWin.focus();
   galleryWin.result = result;
   galleryWin.webContents.send('gallery', result);

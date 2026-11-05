@@ -1,6 +1,6 @@
 {
   "name": "leaf",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Drop anything. Leaf converts it.",
   "main": "src/main.js",
   "scripts": {

@@ -100,7 +100,7 @@ Adding a format means adding a case in `plan.js` (what to suggest) and in `run.j
 ```bash
 npm install
 npm start                # dev run
-npm run dist             # → dist/Leaf-0.1.1-portable.exe
+npm run dist             # → dist/Leaf-0.1.2-portable.exe
 ```
 Command line: `Leaf.exe "C:\path\photos.zip"` opens the suggestion panel. Add `--auto` to run the main suggestion straight away.
 
