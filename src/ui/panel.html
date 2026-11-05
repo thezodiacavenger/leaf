@@ -1,0 +1,175 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Leaf</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' leaf:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'">
+<link rel="stylesheet" href="base.css">
+<style>
+  body { padding: 14px; }
+  body.sys { padding: 0; }
+  .card { background: var(--glass); border: 1px solid var(--line-strong); border-radius: var(--r); box-shadow: var(--shadow); padding: 18px; overflow: hidden; position: relative; }
+  body.sys .card { background: none; border: 0; box-shadow: none; border-radius: 0; }
+  .card::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 1px; background: linear-gradient(90deg, transparent, rgba(255,255,255,.55), transparent); }
+  .view { animation: in .32s var(--ease); }
+  @keyframes in { from { opacity: 0; transform: translateY(6px); } }
+  .head { display: flex; gap: 12px; align-items: center; }
+  .tile { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: var(--hover); border: 1px solid var(--line); flex: none; }
+  .tile svg { width: 20px; height: 20px; }
+  h1 { font: 600 15px/1.25 var(--font-display); letter-spacing: -.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sub { color: var(--ink-3); font-size: 12px; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .meta { min-width: 0; flex: 1; }
+  .x { width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; color: var(--ink-3); align-self: flex-start; }
+  .x:hover { background: var(--hover); color: var(--ink); }
+  .primary { margin-top: 16px; width: 100%; display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 12px;
+    background: var(--accent); color: var(--accent-ink); font-weight: 600; font-size: 13.5px; text-align: left;
+    box-shadow: 0 6px 18px -6px color-mix(in srgb, var(--accent) 70%, transparent), inset 0 1px 0 rgba(255,255,255,.25);
+    transition: transform .2s var(--spring), filter .2s; position: relative; overflow: hidden; }
+  .primary::after { content: ""; position: absolute; inset: 0; background: var(--aura); opacity: 0; transition: opacity .3s; mix-blend-mode: soft-light; }
+  .primary:hover { filter: brightness(1.06); } .primary:hover::after { opacity: .7; }
+  .primary:active { transform: scale(.985); }
+  .primary .lbl { flex: 1; } .primary small { display: block; font-weight: 400; opacity: .78; font-size: 11.5px; }
+  .primary kbd { border-color: rgba(255,255,255,.6); opacity: .8; }
+  .alts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .alt { display: inline-flex; gap: 7px; align-items: center; padding: 7px 10px; border-radius: 9px; border: 1px solid var(--line); color: var(--ink-2); font-size: 12.5px; transition: background .15s, color .15s; }
+  .alt:hover:not(:disabled) { background: var(--hover); color: var(--ink); }
+  .alt:disabled { opacity: .5; }
+  .alt kbd { font-size: 9.5px; padding: 2px 4px; }
+  .foot { display: flex; justify-content: space-between; margin-top: 14px; color: var(--ink-3); font-size: 11.5px; }
+  /* progress */
+  .track { height: 4px; border-radius: 4px; background: var(--hover); margin-top: 18px; overflow: hidden; }
+  .fill { height: 100%; width: 0; border-radius: 4px; background: var(--aura); background-size: 200% 100%; animation: flow 1.6s linear infinite; transition: width .25s var(--ease); }
+  @keyframes flow { to { background-position: -200% 0; } }
+  .now { margin-top: 8px; display: flex; justify-content: space-between; color: var(--ink-3); font-size: 11.5px; gap: 12px; }
+  .now span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* done */
+  .fan { display: flex; margin-top: 16px; height: 86px; cursor: pointer; padding-left: 6px; }
+  .fan img { width: 86px; height: 86px; object-fit: cover; border-radius: 12px; border: 2px solid var(--glass); box-shadow: 0 6px 16px -6px rgba(0,0,0,.35); margin-left: -34px; transition: transform .35s var(--spring); background: var(--hover); }
+  .fan img:first-child { margin-left: 0; }
+  .fan:hover img { transform: translateX(calc(var(--i) * 8px)) rotate(calc((var(--i) - 2) * 2deg)); }
+  .fan .more { align-self: center; margin-left: 14px; color: var(--ink-3); font-size: 12px; }
+  .row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 14px; }
+  .act { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 11px 6px 9px; border-radius: 12px; border: 1px solid var(--line); color: var(--ink-2); font-size: 12px; transition: background .15s, color .15s, transform .2s var(--spring); }
+  .act:hover { background: var(--hover); color: var(--ink); } .act:active { transform: scale(.97); }
+  .act.main { background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); border-color: color-mix(in srgb, var(--accent) 30%, transparent); }
+  .note { margin-top: 10px; font-size: 11.5px; color: var(--ink-3); }
+  .note b { color: var(--warn); font-weight: 600; }
+  details summary { cursor: pointer; } details ul { margin: 6px 0 0; padding-left: 16px; max-height: 90px; overflow: auto; }
+  .ok { color: var(--ok); }
+  .recent { margin-top: 14px; display: grid; gap: 2px; }
+  .recent button { display: flex; justify-content: space-between; padding: 8px 10px; border-radius: 9px; text-align: left; color: var(--ink-2); }
+  .recent button:hover { background: var(--hover); color: var(--ink); }
+  .label { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); margin-top: 16px; }
+  body.over .card { outline: 2px dashed color-mix(in srgb, var(--accent) 60%, transparent); outline-offset: -8px; }
+</style></head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <symbol id="photo" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="1.8"/><path d="M21 16l-5-5-9 9"/></symbol>
+  <symbol id="doc" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></symbol>
+  <symbol id="archive" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="5" rx="1.5"/><path d="M5 9v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9M10 13h4"/></symbol>
+  <symbol id="file" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></symbol>
+  <symbol id="close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+  <symbol id="eye" viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="folder" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
+  <symbol id="mail" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M4 7l8 6 8-6"/></symbol>
+  <symbol id="check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+  <symbol id="leaf" viewBox="0 0 24 24"><path d="M5 19C5 10 10 5 19 5c0 9-5 14-14 14z"/><path d="M5 19L14 10"/></symbol>
+</svg>
+<div class="card" id="card"><div id="view"></div></div>
+<script>
+  if (new URLSearchParams(location.search).get('glass') === 'system') document.body.classList.add('sys');
+  const $ = (h) => { const t = document.createElement('template'); t.innerHTML = h.trim(); return t.content; };
+  const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const icon = (id, cls = 'i') => `<svg class="${cls}"><use href="#${id}"/></svg>`;
+  const view = document.getElementById('view');
+  let S = {}; let lastKey = '';
+
+  new ResizeObserver(() => leaf.send('panel:height', Math.ceil(document.getElementById('card').getBoundingClientRect().height + (document.body.classList.contains('sys') ? 0 : 28)))).observe(document.getElementById('card'));
+
+  const header = (ic, title, sub) => `<div class="head"><div class="tile">${icon(ic)}</div><div class="meta"><h1>${esc(title)}</h1><div class="sub">${esc(sub)}</div></div><button class="x" data-do="cancel" title="Dismiss (Esc)">${icon('close')}</button></div>`;
+
+  function doneTitle(r) {
+    if (r.action === 'pdf') return 'PDF ready';
+    if (r.action === 'unzip') return `${r.outputs.length} files unzipped`;
+    if (r.action === 'doc-mail') return 'Opened in Outlook';
+    if (r.action.startsWith('doc')) return r.outputs.length === 1 ? 'PDF ready' : `${r.outputs.length} PDFs ready`;
+    const ext = (r.outputs[0]?.name.split('.').pop() || '').toUpperCase().replace('JPG', 'JPEG');
+    return `${r.outputs.length} ${ext}${r.outputs.length === 1 ? '' : 's'} ready`;
+  }
+
+  function render() {
+    const key = S.phase + (S.phase === 'done' ? S.result?.title : '') + (S.proposal?.title || '');
+    const fresh = key !== lastKey; lastKey = key;
+    let h = '';
+    if (S.phase === 'reading') h = header('leaf', 'Looking inside…', 'One moment');
+    else if (S.phase === 'proposal') {
+      const p = S.proposal; const [first, ...rest] = p.actions;
+      h = header(p.icon, p.title, p.subtitle) +
+        `<button class="primary" data-act="0" ${first.disabled ? 'disabled' : ''}><span class="lbl">${esc(first.label)}<small>${esc(first.hint || '')}</small></span><kbd>Enter</kbd></button>` +
+        (rest.length ? `<div class="alts">${rest.map((a, i) => `<button class="alt" data-act="${i + 1}" ${a.disabled ? 'disabled' : ''} title="${esc(a.hint || '')}">${esc(a.label)} <kbd>${i + 2}</kbd></button>`).join('')}</div>` : '') +
+        `<div class="foot"><span>Originals are never changed</span><span>Esc to dismiss</span></div>`;
+    } else if (S.phase === 'working') {
+      const p = S.progress || {}; const pct = p.total ? Math.round(100 * p.done / p.total) : 0;
+      h = header('leaf', `${S.action}…`, p.total ? `${p.done} of ${p.total}` : 'Starting') +
+        `<div class="track"><div class="fill" style="width:${Math.max(3, pct)}%"></div></div><div class="now"><span>${esc(p.name || '')}</span><span>Esc to stop</span></div>`;
+    } else if (S.phase === 'done') {
+      const r = S.result; const imgs = r.outputs.filter((o) => o.thumb); const fails = r.failures || [];
+      const big = r.outputs.reduce((a, o) => a + (o.bytes || 0), 0) > 20e6;
+      h = header('check', r.cancelled ? 'Stopped' : doneTitle(r), [r.title, r.size].filter(Boolean).join(' · ')) +
+        (imgs.length ? `<div class="fan" data-do="gallery" title="Preview (Space)">${imgs.slice(0, 5).map((o, i) => `<img style="--i:${i}" src="${leaf.url(o.thumb)}" alt="">`).join('')}${imgs.length > 5 ? `<span class="more">+${imgs.length - 5}</span>` : ''}</div>` : '') +
+        `<div class="row">` +
+          (imgs.length ? `<button class="act main" data-do="gallery">${icon('eye')}Preview</button>` : r.outputs.length === 1 ? `<button class="act main" data-do="open">${icon('eye')}Open</button>` : '') +
+          `<button class="act" data-do="folder">${icon('folder')}Folder</button>` +
+          (r.outputs.length && r.action !== 'doc-mail' ? `<button class="act" data-do="email">${icon('mail')}Email</button>` : '') +
+        `</div>` +
+        (big && imgs.length ? `<div class="note">Over 20 MB — Email sends <b>email-size copies</b> (2048px). Originals stay full size.</div>` : '') +
+        (fails.length ? `<details class="note"><summary><b>${fails.length} skipped</b> — see why</summary><ul>${fails.map((f) => `<li>${esc(f.name)}: ${esc(f.reason)}</li>`).join('')}</ul></details>` : '');
+    } else if (S.phase === 'error') {
+      h = header('file', 'That didn’t work', S.error) + `<div class="foot"><span>Try another file</span><span>Esc to dismiss</span></div>`;
+    } else {
+      h = header('leaf', 'Drop anything on the leaf', 'Zips, folders, photos, Word docs') +
+        (S.recent?.length ? `<div class="label">Recent</div><div class="recent">${S.recent.map((r, i) => `<button data-recent="${i}"><span>${esc(r.title)}</span><span class="sub">${r.count} files</span></button>`).join('')}</div>` : '') +
+        `<div class="foot"><span>Right-click the tray icon for settings</span><span></span></div>`;
+    }
+    if (fresh) { view.className = ''; void view.offsetWidth; view.className = 'view'; view.innerHTML = h; }
+    else view.innerHTML = h;
+    if (fresh) (view.querySelector('.primary:not(:disabled), .act.main') || document.body).focus?.();
+  }
+
+  async function doIt(what) {
+    const r = S.result;
+    if (what === 'cancel') leaf.send('panel:cancel');
+    else if (what === 'gallery') leaf.send('panel:gallery');
+    else if (what === 'folder') leaf.send('panel:folder');
+    else if (what === 'open') leaf.send('panel:open', r.outputs[0].path);
+    else if (what === 'email') {
+      const files = r.outputs.map((o) => o.path);
+      const shrink = r.outputs.reduce((a, o) => a + (o.bytes || 0), 0) > 20e6 && r.outputs.some((o) => o.thumb);
+      leaf.send('panel:hide'); await leaf.invoke('email', files, { shrink });
+    }
+  }
+
+  view.addEventListener('click', (e) => {
+    const a = e.target.closest('[data-act]'); if (a) return leaf.send('panel:act', +a.dataset.act);
+    const d = e.target.closest('[data-do]'); if (d) return doIt(d.dataset.do);
+    const r = e.target.closest('[data-recent]'); if (r) leaf.send('panel:gallery', +r.dataset.recent);
+  });
+  addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') return leaf.send('panel:cancel');
+    if (S.phase === 'proposal') {
+      if (e.key === 'Enter' && !(document.activeElement instanceof HTMLButtonElement)) { e.preventDefault(); leaf.send('panel:act', 0); }
+      const n = +e.key; if (n >= 2 && n <= 9) leaf.send('panel:act', n - 1);
+    } else if (S.phase === 'done') {
+      if (e.key === ' ' && !(document.activeElement instanceof HTMLButtonElement)) { e.preventDefault(); doIt('gallery'); }
+      if (e.key.toLowerCase() === 'o') doIt('folder');
+      if (e.key.toLowerCase() === 'e') doIt('email');
+    }
+  });
+  // The panel is a drop target too.
+  let depth = 0;
+  addEventListener('dragenter', (e) => { e.preventDefault(); depth++; document.body.classList.add('over'); });
+  addEventListener('dragleave', () => { if (--depth <= 0) { depth = 0; document.body.classList.remove('over'); } });
+  addEventListener('dragover', (e) => e.preventDefault());
+  addEventListener('drop', (e) => { e.preventDefault(); depth = 0; document.body.classList.remove('over'); leaf.send('leaf:drop', leaf.pathsOf(e.dataTransfer.files)); });
+
+  leaf.on('state', (s) => { S = s; render(); });
+  leaf.send('ready');
+</script>
+</body></html>

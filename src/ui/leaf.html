@@ -1,0 +1,71 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Leaf</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'">
+<link rel="stylesheet" href="base.css">
+<style>
+  body { display: grid; place-items: center; }
+  #hit { width: 112px; height: 112px; display: grid; place-items: center; }
+  /* The leaf: a glass lens with two pointed corners. */
+  .leaf { position: relative; width: 52px; height: 52px; border-radius: 4px 50% 4px 50%; transform: rotate(0deg);
+    background:
+      radial-gradient(120% 90% at 20% 10%, rgba(255,255,255,.75), rgba(255,255,255,0) 45%),
+      radial-gradient(100% 100% at 85% 90%, rgba(139,92,255,.45), rgba(139,92,255,0) 60%),
+      linear-gradient(135deg, rgba(52,214,196,.55), rgba(47,107,255,.55) 55%, rgba(139,92,255,.5));
+    border: 1px solid rgba(255,255,255,.65);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.8), inset 0 -8px 18px rgba(47,107,255,.18), 0 10px 24px -8px rgba(20,30,70,.45);
+    opacity: .86; transition: transform .45s var(--spring), opacity .3s var(--ease), box-shadow .3s var(--ease); }
+  .leaf::after { /* the vein */ content: ""; position: absolute; left: 12%; top: calc(50% - 1px); width: 76%; height: 1.5px; border-radius: 2px;
+    background: linear-gradient(90deg, rgba(255,255,255,.9), rgba(255,255,255,.2)); transform: rotate(45deg); }
+  #hit:hover .leaf { opacity: 1; transform: scale(1.06); }
+  body.drag .leaf { opacity: 1; transform: scale(1.32) rotate(-8deg); box-shadow: inset 0 1px 0 rgba(255,255,255,.9), 0 0 0 6px rgba(91,140,255,.18), 0 0 40px 6px rgba(52,214,196,.35), 0 14px 30px -8px rgba(20,30,70,.5); }
+  .halo { position: absolute; width: 84px; height: 84px; border-radius: 50%; background: var(--aura); filter: blur(18px); opacity: 0; transition: opacity .4s var(--ease); pointer-events: none; }
+  body.drag .halo { opacity: .55; }
+  body.busy .halo { opacity: .28; animation: breathe 2.4s var(--ease) infinite; }
+  @keyframes breathe { 50% { opacity: .5; transform: scale(1.08); } }
+  /* progress ring */
+  svg.ring { position: absolute; width: 84px; height: 84px; transform: rotate(-90deg); opacity: 0; transition: opacity .3s; pointer-events: none; }
+  body.busy svg.ring { opacity: 1; }
+  svg.ring circle { fill: none; stroke-width: 2.5; }
+  svg.ring .track { stroke: rgba(255,255,255,.25); }
+  svg.ring .bar { stroke: url(#g); stroke-linecap: round; stroke-dasharray: 251; stroke-dashoffset: 251; transition: stroke-dashoffset .25s linear; }
+  .badge { position: absolute; top: 24px; right: 24px; width: 12px; height: 12px; border-radius: 50%; background: var(--aura); border: 2px solid rgba(255,255,255,.9);
+    transform: scale(0); transition: transform .4s var(--spring); }
+  body.unseen .badge { transform: scale(1); }
+  body.nudge .leaf { animation: nudge .9s var(--spring); }
+  @keyframes nudge { 30% { transform: scale(1.18) rotate(-6deg); } 60% { transform: scale(.96) rotate(3deg); } }
+</style></head>
+<body>
+  <div id="hit" title="Drop files, folders or zips here">
+    <div class="halo"></div>
+    <svg class="ring" viewBox="0 0 84 84"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#34d6c4"/><stop offset=".5" stop-color="#2f6bff"/><stop offset="1" stop-color="#8b5cff"/></linearGradient></defs>
+      <circle class="track" cx="42" cy="42" r="40"/><circle class="bar" cx="42" cy="42" r="40"/></svg>
+    <div class="leaf"></div>
+    <div class="badge"></div>
+  </div>
+<script>
+  const b = document.body; const bar = document.querySelector('.bar'); let depth = 0;
+  addEventListener('dragenter', (e) => { e.preventDefault(); depth++; b.classList.add('drag'); });
+  addEventListener('dragleave', () => { if (--depth <= 0) { depth = 0; b.classList.remove('drag'); } });
+  addEventListener('dragover', (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; });
+  addEventListener('drop', (e) => { e.preventDefault(); depth = 0; b.classList.remove('drag'); leaf.send('leaf:drop', leaf.pathsOf(e.dataTransfer.files)); });
+
+  // Click toggles the panel; press-and-drag moves the leaf anywhere.
+  let start = null;
+  hit.addEventListener('pointerdown', async (e) => { const [wx, wy] = await leaf.invoke('leaf:pos'); start = { sx: e.screenX, sy: e.screenY, wx, wy, moved: false }; hit.setPointerCapture(e.pointerId); });
+  hit.addEventListener('pointermove', (e) => {
+    if (!start) return; const dx = e.screenX - start.sx, dy = e.screenY - start.sy;
+    if (!start.moved && Math.hypot(dx, dy) < 5) return; start.moved = true;
+    leaf.send('leaf:move', { x: start.wx + dx, y: start.wy + dy });
+  });
+  hit.addEventListener('pointerup', () => { if (start && !start.moved) leaf.send('leaf:click'); else if (start) leaf.send('leaf:moved'); start = null; });
+
+  leaf.on('state', (s) => {
+    b.classList.toggle('busy', s.phase === 'working' || s.phase === 'reading');
+    b.classList.toggle('unseen', !!s.unseen);
+    const p = s.progress; const f = p && p.total ? p.done / p.total : 0;
+    bar.style.strokeDashoffset = String(251 * (1 - f));
+  });
+  leaf.on('nudge', () => { b.classList.remove('nudge'); void b.offsetWidth; b.classList.add('nudge'); });
+  leaf.send('ready');
+</script>
+</body></html>

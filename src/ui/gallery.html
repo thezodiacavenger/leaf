@@ -1,0 +1,174 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Leaf</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' leaf:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'">
+<link rel="stylesheet" href="base.css">
+<style>
+  body { display: grid; grid-template-rows: 52px 1fr; grid-template-columns: 1fr 76px; background: var(--glass); }
+  body.sys { background: var(--tint); }
+  header { grid-column: 1 / -1; display: flex; align-items: center; gap: 12px; padding: 0 8px 0 20px; -webkit-app-region: drag; border-bottom: 1px solid var(--line); }
+  header h1 { font: 600 14px var(--font-display); } header .sub { color: var(--ink-3); font-size: 12px; flex: 1; }
+  .win { display: flex; -webkit-app-region: no-drag; }
+  .win button { width: 44px; height: 34px; border-radius: 8px; display: grid; place-items: center; color: var(--ink-2); }
+  .win button:hover { background: var(--hover); } .win button.close:hover { background: #e5484d; color: #fff; }
+  main { overflow: auto; padding: 22px 12px 40px 22px; scrollbar-width: thin; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(176px, 1fr)); gap: 16px; }
+  .tile { position: relative; aspect-ratio: 1; border-radius: 16px; overflow: visible; outline: none; transition: transform .28s var(--spring), z-index 0s .28s; z-index: 0; }
+  .tile .img { position: absolute; inset: 0; border-radius: inherit; overflow: hidden; background: var(--hover); box-shadow: 0 1px 2px rgba(0,0,0,.08); transition: box-shadow .28s var(--ease); }
+  .tile img { width: 100%; height: 100%; object-fit: cover; display: block; opacity: 0; transition: opacity .4s var(--ease); }
+  .tile img.loaded { opacity: 1; }
+  .tile:hover, .tile:focus-visible { transform: scale(1.09); z-index: 2; transition: transform .28s var(--spring); }
+  .tile:hover .img, .tile:focus-visible .img { box-shadow: 0 18px 40px -12px rgba(0,0,0,.45), 0 0 0 1px var(--line-strong); }
+  .tile:focus-visible .img { box-shadow: 0 18px 40px -12px rgba(0,0,0,.45), 0 0 0 2.5px var(--accent); }
+  .tile .name { position: absolute; left: 0; right: 0; bottom: 0; padding: 22px 12px 9px; border-radius: 0 0 16px 16px; background: linear-gradient(transparent, rgba(0,0,0,.55)); font-size: 11.5px; color: #fff; opacity: 0; transition: opacity .2s; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
+  .tile:hover .name, .tile:focus-visible .name { opacity: 1; }
+  .tile .sel { position: absolute; top: 8px; left: 8px; width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid rgba(255,255,255,.9); background: rgba(0,0,0,.18); display: grid; place-items: center; opacity: 0; transition: opacity .15s, background .15s; z-index: 1; }
+  .tile .sel svg { width: 14px; height: 14px; color: #fff; opacity: 0; }
+  .tile:hover .sel, .tile:focus-visible .sel, body.selecting .tile .sel { opacity: 1; }
+  .tile.on .sel { background: var(--accent); border-color: var(--accent); } .tile.on .sel svg { opacity: 1; }
+  .tile.on .img { box-shadow: 0 0 0 3px var(--accent); }
+  /* the leaf rail */
+  aside { border-left: 1px solid var(--line); display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 14px 0; }
+  aside .count { font-size: 10.5px; color: var(--ink-3); text-align: center; margin-bottom: 6px; min-height: 28px; line-height: 1.3; }
+  aside button { position: relative; width: 52px; height: 52px; border-radius: 14px; display: grid; place-items: center; color: var(--ink-2); transition: background .15s, color .15s, transform .2s var(--spring); }
+  aside button svg { width: 21px; height: 21px; }
+  aside button:hover, aside button:focus-visible { background: var(--hover); color: var(--ink); }
+  aside button:active { transform: scale(.94); }
+  aside button::after { content: attr(data-tip); position: absolute; right: 60px; top: 50%; transform: translate(6px, -50%); white-space: nowrap; padding: 6px 10px; border-radius: 8px; background: var(--ink); color: var(--glass); font-size: 12px; opacity: 0; pointer-events: none; transition: opacity .15s, transform .2s var(--ease); }
+  aside button:hover::after, aside button:focus-visible::after { opacity: 1; transform: translate(0, -50%); }
+  aside hr { width: 28px; border: 0; border-top: 1px solid var(--line); margin: 6px 0; }
+  /* full-screen preview */
+  #lb { position: fixed; inset: 0; z-index: 10; background: rgba(8, 9, 12, .94); display: none; grid-template-rows: 1fr auto; color: #f2f4f8; }
+  #lb.open { display: grid; animation: fade .25s var(--ease); }
+  @keyframes fade { from { opacity: 0; } }
+  #lb .stage { position: relative; display: grid; place-items: center; overflow: hidden; }
+  #lb img { max-width: 96vw; max-height: calc(100vh - 80px); object-fit: contain; border-radius: 6px; box-shadow: 0 30px 80px rgba(0,0,0,.6); animation: pop .35s var(--spring); }
+  @keyframes pop { from { opacity: 0; transform: scale(.96); } }
+  #lb .bar { display: flex; align-items: center; gap: 16px; padding: 14px 24px 18px; font-size: 12.5px; color: rgba(242,244,248,.7); }
+  #lb .bar b { color: #fff; font-weight: 600; } #lb .bar .sp { flex: 1; }
+  #lb .bar button { padding: 7px 12px; border-radius: 9px; color: #f2f4f8; display: inline-flex; gap: 8px; align-items: center; }
+  #lb .bar button:hover { background: rgba(255,255,255,.1); }
+  #lb .nav { position: absolute; top: 50%; transform: translateY(-50%); width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center; color: #fff; background: rgba(255,255,255,.08); opacity: 0; transition: opacity .2s; }
+  #lb .stage:hover .nav { opacity: 1; } #lb .nav:hover { background: rgba(255,255,255,.16); }
+  #lb .prev { left: 24px; } #lb .next { right: 24px; }
+  #toast { position: fixed; left: 50%; bottom: 28px; transform: translate(-50%, 20px); padding: 9px 16px; border-radius: 99px; background: var(--ink); color: var(--glass); font-size: 12.5px; opacity: 0; transition: all .3s var(--spring); z-index: 20; pointer-events: none; }
+  #toast.show { opacity: 1; transform: translate(-50%, 0); }
+  .hint { color: var(--ink-3); font-size: 11.5px; padding: 28px 0 0 2px; }
+</style></head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <symbol id="close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+  <symbol id="min" viewBox="0 0 24 24"><path d="M6 12h12"/></symbol>
+  <symbol id="max" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></symbol>
+  <symbol id="check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+  <symbol id="folder" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
+  <symbol id="mail" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M4 7l8 6 8-6"/></symbol>
+  <symbol id="pdf" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M8.5 14h7M8.5 17.5h4.5"/></symbol>
+  <symbol id="copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2.5"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></symbol>
+  <symbol id="open" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4"/></symbol>
+  <symbol id="all" viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></symbol>
+  <symbol id="l" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></symbol>
+  <symbol id="r" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></symbol>
+</svg>
+<header><h1 id="title">Preview</h1><span class="sub" id="sub"></span>
+  <div class="win"><button data-w="min" title="Minimize"><svg class="i"><use href="#min"/></svg></button><button data-w="max" title="Maximize"><svg class="i"><use href="#max"/></svg></button><button class="close" data-w="close" title="Close (Ctrl+W)"><svg class="i"><use href="#close"/></svg></button></div>
+</header>
+<main><div class="grid" id="grid" role="listbox" aria-label="Converted images"></div>
+  <div class="hint">Arrows or Tab to move · Space to view full screen · X or Ctrl+click to select · Ctrl+C copies</div></main>
+<aside>
+  <div class="count" id="count"></div>
+  <button data-a="email" data-tip="Email"><svg class="i"><use href="#mail"/></svg></button>
+  <button data-a="pdf" data-tip="Make one PDF"><svg class="i"><use href="#pdf"/></svg></button>
+  <button data-a="copy" data-tip="Copy image (Ctrl+C)"><svg class="i"><use href="#copy"/></svg></button>
+  <hr>
+  <button data-a="folder" data-tip="Show in folder"><svg class="i"><use href="#folder"/></svg></button>
+  <button data-a="open" data-tip="Open in default app"><svg class="i"><use href="#open"/></svg></button>
+  <button data-a="all" data-tip="Select all (Ctrl+A)"><svg class="i"><use href="#all"/></svg></button>
+</aside>
+<div id="lb"><div class="stage"><img id="big" alt=""><button class="nav prev" data-n="-1"><svg class="i"><use href="#l"/></svg></button><button class="nav next" data-n="1"><svg class="i"><use href="#r"/></svg></button></div>
+  <div class="bar"><b id="lbName"></b><span id="lbMeta"></span><span class="sp"></span>
+    <button data-a="copy"><svg class="i"><use href="#copy"/></svg>Copy</button><button data-a="email1"><svg class="i"><use href="#mail"/></svg>Email</button><button data-a="open"><svg class="i"><use href="#open"/></svg>Open</button><button data-a="closeLb">Esc</button></div></div>
+<div id="toast"></div>
+<script>
+  if (new URLSearchParams(location.search).get('glass') === 'system') document.body.classList.add('sys');
+  const grid = document.getElementById('grid'); const lb = document.getElementById('lb'); const big = document.getElementById('big');
+  let items = []; let result = null; let cur = 0; const sel = new Set();
+  const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const mb = (b) => b >= 1e6 ? `${(b / 1e6).toFixed(1)} MB` : `${Math.round(b / 1e3)} KB`;
+  const toast = (t) => { const el = document.getElementById('toast'); el.textContent = t; el.classList.add('show'); clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove('show'), 1800); };
+
+  function load(r) {
+    result = r; items = r.outputs.filter((o) => o.thumb); sel.clear(); cur = 0;
+    document.getElementById('title').textContent = r.title || 'Preview';
+    document.getElementById('sub').textContent = `${items.length} images · ${r.size}`;
+    grid.innerHTML = items.map((o, i) => `<div class="tile" role="option" tabindex="${i ? -1 : 0}" data-i="${i}"><div class="sel"><svg class="i"><use href="#check"/></svg></div><div class="img"><img loading="lazy" decoding="async" src="${leaf.url(o.thumb)}" alt="${esc(o.name)}" onload="this.classList.add('loaded')"></div><div class="name">${esc(o.name)}</div></div>`).join('');
+    tiles()[0]?.focus(); counts();
+  }
+  const tiles = () => [...grid.children];
+  const cols = () => { const t = tiles(); if (t.length < 2) return 1; const top = t[0].offsetTop; const n = t.findIndex((x) => x.offsetTop !== top); return n < 0 ? t.length : n; };
+  function focusAt(i) { const t = tiles(); i = Math.max(0, Math.min(t.length - 1, i)); t.forEach((x, k) => x.tabIndex = k === i ? 0 : -1); t[i].focus(); t[i].scrollIntoView({ block: 'nearest', behavior: 'smooth' }); cur = i; }
+  function toggle(i) { sel.has(i) ? sel.delete(i) : sel.add(i); tiles()[i].classList.toggle('on', sel.has(i)); counts(); }
+  function counts() { document.body.classList.toggle('selecting', sel.size > 0); document.getElementById('count').innerHTML = sel.size ? `<b>${sel.size}</b><br>selected` : `All<br>${items.length}`; }
+  const targets = () => (sel.size ? [...sel].sort((a, b) => a - b) : items.map((_, i) => i)).map((i) => items[i].path);
+
+  function openLb(i) { cur = i; leaf.send('gallery:fullscreen', true); lb.classList.add('open'); showLb(); }
+  function showLb() {
+    const o = items[cur]; big.src = leaf.url(o.path); big.style.animation = 'none'; void big.offsetWidth; big.style.animation = '';
+    document.getElementById('lbName').textContent = o.name;
+    document.getElementById('lbMeta').textContent = `${o.width} × ${o.height} · ${mb(o.bytes)} · ${cur + 1} of ${items.length}`;
+    [cur - 1, cur + 1].forEach((k) => { if (items[k]) new Image().src = leaf.url(items[k].path); }); // preload neighbours
+  }
+  function closeLb() { lb.classList.remove('open'); leaf.send('gallery:fullscreen', false); focusAt(cur); }
+  const step = (d) => { cur = (cur + d + items.length) % items.length; showLb(); };
+
+  async function action(a) {
+    const focused = items[cur]?.path;
+    if (a === 'folder') leaf.send('gallery:reveal', focused);
+    else if (a === 'open') leaf.send('gallery:open', focused);
+    else if (a === 'copy') { leaf.send('gallery:copy', focused); toast('Image copied'); }
+    else if (a === 'all') { const all = sel.size !== items.length; items.forEach((_, i) => { all ? sel.add(i) : sel.delete(i); tiles()[i].classList.toggle('on', all); }); counts(); }
+    else if (a === 'pdf') { toast('Making PDF…'); leaf.send('gallery:pdf', targets()); }
+    else if (a === 'email' || a === 'email1') {
+      const files = a === 'email1' ? [focused] : targets();
+      const bytes = items.filter((o) => files.includes(o.path)).reduce((s, o) => s + o.bytes, 0);
+      const shrink = bytes > 20e6;
+      toast(shrink ? `Shrinking ${files.length} to email size…` : 'Opening mail…');
+      const r = await leaf.invoke('email', files, { shrink });
+      if (r?.via === 'fallback') toast('Outlook not found — files shown so you can attach them');
+    } else if (a === 'closeLb') closeLb();
+  }
+
+  grid.addEventListener('click', (e) => {
+    const t = e.target.closest('.tile'); if (!t) return; const i = +t.dataset.i;
+    if (e.ctrlKey || e.metaKey || e.target.closest('.sel') || (sel.size && !e.target.closest('.img'))) { toggle(i); focusAt(i); return; }
+    if (e.shiftKey && sel.size) { const a = Math.min(cur, i), b = Math.max(cur, i); for (let k = a; k <= b; k++) if (!sel.has(k)) toggle(k); return; }
+    focusAt(i); openLb(i);
+  });
+  grid.addEventListener('focusin', (e) => { const t = e.target.closest('.tile'); if (t) cur = +t.dataset.i; });
+  document.querySelector('aside').addEventListener('click', (e) => { const b = e.target.closest('[data-a]'); if (b) action(b.dataset.a); });
+  lb.addEventListener('click', (e) => { const b = e.target.closest('[data-a]'); if (b) return action(b.dataset.a); const n = e.target.closest('[data-n]'); if (n) return step(+n.dataset.n); if (e.target.classList.contains('stage')) closeLb(); });
+  document.querySelector('.win').addEventListener('click', (e) => { const b = e.target.closest('[data-w]'); if (b) leaf.send('gallery:' + b.dataset.w); });
+
+  addEventListener('keydown', (e) => {
+    const k = e.key; const ctrl = e.ctrlKey || e.metaKey;
+    if (lb.classList.contains('open')) {
+      if (k === 'Escape' || k === ' ') { e.preventDefault(); closeLb(); }
+      else if (k === 'ArrowRight' || k === 'ArrowDown') step(1); else if (k === 'ArrowLeft' || k === 'ArrowUp') step(-1);
+      else if (ctrl && k.toLowerCase() === 'c') action('copy');
+      return;
+    }
+    if (ctrl && k.toLowerCase() === 'w') return leaf.send('gallery:close');
+    if (ctrl && k.toLowerCase() === 'a') { e.preventDefault(); return action('all'); }
+    if (ctrl && k.toLowerCase() === 'c') return action('copy');
+    if (!e.target.closest?.('.tile')) return;
+    const c = cols();
+    const move = { ArrowRight: 1, ArrowLeft: -1, ArrowDown: c, ArrowUp: -c, Home: -1e9, End: 1e9 }[k];
+    if (move != null) { e.preventDefault(); focusAt(cur + move); }
+    else if (k === ' ' || k === 'Enter') { e.preventDefault(); openLb(cur); }
+    else if (k.toLowerCase() === 'x') toggle(cur);
+    else if (k === 'Escape') { if (sel.size) { sel.clear(); tiles().forEach((t) => t.classList.remove('on')); counts(); } else leaf.send('gallery:close'); }
+  });
+
+  leaf.on('gallery', load);
+  leaf.invoke('gallery:get').then((r) => r && load(r));
+</script>
+</body></html>
