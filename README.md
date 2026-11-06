@@ -20,6 +20,8 @@ Download the latest version from **[Releases](https://github.com/thezodiacavenge
 
 Windows 10 or 11, 64-bit. Builds aren't code-signed yet, so on first run choose *More info → Run anyway*.
 
+**IT / security review:** see [docs/IT-REVIEW.md](docs/IT-REVIEW.md) for network behaviour, processes, files written, data handling and download hashes.
+
 ### Why Leaf?
 - **Private by default.** Nothing is uploaded; conversions happen on your PC. Online converters can't promise that.
 - **One drop, one decision.** Leaf reads the file and suggests the right action, instead of making you pick formats from menus.
